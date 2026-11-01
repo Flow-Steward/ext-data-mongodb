@@ -1,0 +1,814 @@
+{
+  "operations": [
+    {
+      "operation_id": "find",
+      "display_name": "Find",
+      "description": "Find up to 100 documents with optional projection and ordered sort. Results use canonical Extended JSON.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": false,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "projection",
+          "value_type": "json",
+          "required": false,
+          "display_name": "Projection",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "sort",
+          "value_type": "json",
+          "required": false,
+          "display_name": "Sort",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "limit",
+          "value_type": "integer",
+          "required": false,
+          "display_name": "Limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "documents",
+          "value_type": "json"
+        },
+        {
+          "name": "count",
+          "value_type": "integer"
+        },
+        {
+          "name": "found",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.documents",
+        "result.count",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "find_one",
+      "display_name": "Find One",
+      "description": "Find one document; missing documents return null and found false.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": false,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "projection",
+          "value_type": "json",
+          "required": false,
+          "display_name": "Projection",
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "document",
+          "value_type": "json"
+        },
+        {
+          "name": "found",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.document",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "aggregate",
+      "display_name": "Aggregate",
+      "description": "Run a bounded read-only pipeline. Cross-collection, JavaScript and write stages are rejected.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "pipeline",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Pipeline",
+          "schema": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "name": "limit",
+          "value_type": "integer",
+          "required": false,
+          "display_name": "Limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "documents",
+          "value_type": "json"
+        },
+        {
+          "name": "count",
+          "value_type": "integer"
+        },
+        {
+          "name": "found",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.documents",
+        "result.count",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "insert_one",
+      "display_name": "Insert One",
+      "description": "Insert one document. Use an explicit stable _id when deduplication is needed.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "document",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Document",
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "inserted_id",
+          "value_type": "json"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.inserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "insert_many",
+      "display_name": "Insert Many",
+      "description": "Insert 1\u2013100 documents. A failure may leave a partially inserted batch; automatic retries are disabled.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "documents",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Documents",
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "inserted_ids",
+          "value_type": "json"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.inserted_ids",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "update_one",
+      "display_name": "Update One",
+      "description": "Apply update operators to one matching document, with optional upsert.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "update",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Update",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "upsert",
+          "value_type": "boolean",
+          "required": false,
+          "display_name": "Upsert",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "matched_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "modified_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "upserted_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "upserted_id",
+          "value_type": "json"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.matched_count",
+        "result.modified_count",
+        "result.upserted_count",
+        "result.upserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "update_many",
+      "display_name": "Update Many",
+      "description": "Update matching documents with explicit allow_many acknowledgement; optional upsert.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "update",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Update",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "upsert",
+          "value_type": "boolean",
+          "required": false,
+          "display_name": "Upsert",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "allow_many",
+          "value_type": "boolean",
+          "required": true,
+          "display_name": "Allow Many",
+          "schema": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "matched_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "modified_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "upserted_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "upserted_id",
+          "value_type": "json"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.matched_count",
+        "result.modified_count",
+        "result.upserted_count",
+        "result.upserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "delete_one",
+      "display_name": "Delete One",
+      "description": "Delete at most one matching document. A zero-match delete succeeds with deleted_count zero.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "deleted_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.deleted_count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    },
+    {
+      "operation_id": "delete_many",
+      "display_name": "Delete Many",
+      "description": "Delete matching documents with explicit allow_many acknowledgement. Nonempty filter required.",
+      "operation_kind": "action",
+      "workflow_visible": true,
+      "connection_type_ids": [
+        "mongodb"
+      ],
+      "category": "data",
+      "inputs": [
+        {
+          "name": "connection_ref",
+          "value_type": "connection_ref",
+          "required": true,
+          "display_name": "Connection Ref"
+        },
+        {
+          "name": "collection",
+          "value_type": "text",
+          "required": true,
+          "display_name": "Collection",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        {
+          "name": "filter",
+          "value_type": "json",
+          "required": true,
+          "display_name": "Filter",
+          "schema": {
+            "type": "object"
+          }
+        },
+        {
+          "name": "allow_many",
+          "value_type": "boolean",
+          "required": true,
+          "display_name": "Allow Many",
+          "schema": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "collection",
+          "value_type": "text"
+        },
+        {
+          "name": "deleted_count",
+          "value_type": "integer"
+        },
+        {
+          "name": "applied",
+          "value_type": "boolean"
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.deleted_count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ]
+    }
+  ]
+}

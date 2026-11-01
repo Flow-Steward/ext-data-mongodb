@@ -1,0 +1,5 @@
+page_id: connection
+title: Connections
+description: Choose the connection form matching your standalone server.
+components:
+- ref: "../components/mongodb_connection_form.yaml"

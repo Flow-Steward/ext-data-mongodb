@@ -1,0 +1,95 @@
+{
+  "component_id": "mongodb_connection",
+  "type": "connection_form",
+  "title": "MongoDB connection",
+  "description": "Use a least-privilege database user. Enable SRV for Atlas hostnames and keep verified TLS enabled.",
+  "data": {
+    "connection_kind": "extension",
+    "connection_type": "mongodb",
+    "config_fields": [
+      "host",
+      "port",
+      "srv",
+      "tls",
+      "database",
+      "auth_source",
+      "request_timeout_seconds"
+    ],
+    "secret_fields": [
+      "username",
+      "password"
+    ]
+  },
+  "defaults": {
+    "display_name": "MongoDB",
+    "port": 27017,
+    "srv": false,
+    "tls": true,
+    "auth_source": "admin",
+    "request_timeout_seconds": 15
+  },
+  "fields": [
+    {
+      "path": "display_name",
+      "label": "Connection name",
+      "widget": "text"
+    },
+    {
+      "path": "environment",
+      "label": "Environment",
+      "widget": "text"
+    },
+    {
+      "path": "host",
+      "label": "Server or SRV hostname",
+      "widget": "text",
+      "required": true
+    },
+    {
+      "path": "port",
+      "label": "Port",
+      "widget": "integer",
+      "required": false
+    },
+    {
+      "path": "srv",
+      "label": "Srv",
+      "widget": "boolean",
+      "required": false
+    },
+    {
+      "path": "tls",
+      "label": "Tls",
+      "widget": "boolean",
+      "required": false
+    },
+    {
+      "path": "database",
+      "label": "Database",
+      "widget": "text",
+      "required": true
+    },
+    {
+      "path": "auth_source",
+      "label": "Auth Source",
+      "widget": "text",
+      "required": false
+    },
+    {
+      "path": "request_timeout_seconds",
+      "label": "Request Timeout Seconds",
+      "widget": "integer",
+      "required": false
+    },
+    {
+      "path": "username",
+      "label": "Username",
+      "widget": "secret"
+    },
+    {
+      "path": "password",
+      "label": "Password",
+      "widget": "secret"
+    }
+  ]
+}

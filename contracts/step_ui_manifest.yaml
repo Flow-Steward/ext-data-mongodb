@@ -1,0 +1,232 @@
+{
+  "forms": [
+    {
+      "operation_id": "find",
+      "title": "Find",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": false
+        },
+        {
+          "name": "projection",
+          "widget_type": "json",
+          "label": "Projection",
+          "required": false
+        },
+        {
+          "name": "sort",
+          "widget_type": "json",
+          "label": "Sort",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "widget_type": "integer",
+          "label": "Limit",
+          "required": false
+        }
+      ]
+    },
+    {
+      "operation_id": "find_one",
+      "title": "Find One",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": false
+        },
+        {
+          "name": "projection",
+          "widget_type": "json",
+          "label": "Projection",
+          "required": false
+        }
+      ]
+    },
+    {
+      "operation_id": "aggregate",
+      "title": "Aggregate",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "pipeline",
+          "widget_type": "json",
+          "label": "Pipeline",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "widget_type": "integer",
+          "label": "Limit",
+          "required": false
+        }
+      ]
+    },
+    {
+      "operation_id": "insert_one",
+      "title": "Insert One",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "document",
+          "widget_type": "json",
+          "label": "Document",
+          "required": true
+        }
+      ]
+    },
+    {
+      "operation_id": "insert_many",
+      "title": "Insert Many",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "documents",
+          "widget_type": "json",
+          "label": "Documents",
+          "required": true
+        }
+      ]
+    },
+    {
+      "operation_id": "update_one",
+      "title": "Update One",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": true
+        },
+        {
+          "name": "update",
+          "widget_type": "json",
+          "label": "Update",
+          "required": true
+        },
+        {
+          "name": "upsert",
+          "widget_type": "boolean",
+          "label": "Upsert",
+          "required": false
+        }
+      ]
+    },
+    {
+      "operation_id": "update_many",
+      "title": "Update Many",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": true
+        },
+        {
+          "name": "update",
+          "widget_type": "json",
+          "label": "Update",
+          "required": true
+        },
+        {
+          "name": "upsert",
+          "widget_type": "boolean",
+          "label": "Upsert",
+          "required": false
+        },
+        {
+          "name": "allow_many",
+          "widget_type": "boolean",
+          "label": "Allow Many",
+          "required": true
+        }
+      ]
+    },
+    {
+      "operation_id": "delete_one",
+      "title": "Delete One",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": true
+        }
+      ]
+    },
+    {
+      "operation_id": "delete_many",
+      "title": "Delete Many",
+      "fields": [
+        {
+          "name": "collection",
+          "widget_type": "textarea",
+          "label": "Collection",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "widget_type": "json",
+          "label": "Filter",
+          "required": true
+        },
+        {
+          "name": "allow_many",
+          "widget_type": "boolean",
+          "label": "Allow Many",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

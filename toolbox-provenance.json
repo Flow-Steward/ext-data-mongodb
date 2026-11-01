@@ -1,0 +1,13 @@
+{
+  "tag": "v1.3.0",
+  "commit": "b0010060a939455d91e4f8ba62dc3e72b1892469",
+  "go_image": "golang:1.26.2-bookworm@sha256:47ce5636e9936b2c5cbf708925578ef386b4f8872aec74a67bd13a627d242b19",
+  "source_date_epoch": 1779400183,
+  "patch": "scripts/patches/0001-flowsteward-mongodb-safety.patch",
+  "patch_sha256": "db5e2b6dc9e29ac4a1ab59fdf06f3a20623016a55af9fc7cce4f47cd4108c70a",
+  "packages": ["github.com/googleapis/mcp-toolbox/internal/sources/mongodb", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbaggregate", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeletemany", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeleteone", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbfind", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbfindone", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbinsertmany", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbinsertone", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbupdatemany", "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbupdateone"],
+  "binaries": {
+    "linux-amd64": {"sha256": "98bc42c4744bbfa723c0e033d68e1033cd5f5c3383c03889eb9d16631795d941", "size": 30064766},
+    "linux-arm64": {"sha256": "0cec88b1eed7dd6d08f2d20f9d73c94a4d84e2cea952b1da790b758d0ad8ac17", "size": 28115070}
+  }
+}

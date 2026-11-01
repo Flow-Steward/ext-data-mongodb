@@ -1,0 +1,119 @@
+{
+  "manifest_version": 2,
+  "extension_id": "flowsteward.mongodb",
+  "kind": "tool_provider",
+  "version": "1.0.0",
+  "release_stage": "active",
+  "display_name": "MongoDB",
+  "description": "MongoDB document reads, writes and read-only aggregation through a minimal Google MCP Toolbox build.",
+  "lifecycle": {
+    "data_schema_version": 1,
+    "data_migrations": []
+  },
+  "vendor": {
+    "name": "Flow Steward"
+  },
+  "listing": {
+    "category": "data",
+    "tags": [
+      "mongodb",
+      "toolbox"
+    ],
+    "summary": "Document CRUD and read-only aggregation."
+  },
+  "features": [
+    "tool",
+    "action"
+  ],
+  "required_scopes": [
+    "extension:invoke"
+  ],
+  "egress": {
+    "connection_fields": [
+      "mongodb.host"
+    ]
+  },
+  "account_scope": {
+    "scope_type": "project",
+    "description": "Explicit project MongoDB connections."
+  },
+  "entrypoint": {
+    "mode": "subprocess",
+    "command": [
+      "python3",
+      "main.py"
+    ],
+    "timeout_seconds": 40
+  },
+  "health": {
+    "command": [
+      "python3",
+      "health.py"
+    ],
+    "timeout_seconds": 5
+  },
+  "ui_manifest": "ui/ui_manifest.yaml",
+  "action_manifest": "ui/actions/actions.yaml",
+  "python_requirements": [],
+  "runtime": {
+    "contract_version": "extension_host_v2",
+    "compatibility": {
+      "platform_min": "1.4.0"
+    },
+    "extension_contract_v2": {
+      "connection_types": "contracts/connection_types.yaml",
+      "operation_manifest": "contracts/operation_manifest.yaml",
+      "step_ui_manifest": "contracts/step_ui_manifest.yaml"
+    }
+  },
+  "external_effects": [
+    {
+      "operation_id": "insert_one",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    },
+    {
+      "operation_id": "insert_many",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    },
+    {
+      "operation_id": "update_one",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    },
+    {
+      "operation_id": "update_many",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    },
+    {
+      "operation_id": "delete_one",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    },
+    {
+      "operation_id": "delete_many",
+      "effect_kind": "database_write",
+      "channel": "mongodb",
+      "idempotency": "required",
+      "test_mode_behavior": "suppress"
+    }
+  ],
+  "machine_auth": {
+    "service_account_key": "svc_ext_mongodb",
+    "required_scopes": [
+      "extension:invoke"
+    ]
+  }
+}

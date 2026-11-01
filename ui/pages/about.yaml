@@ -1,0 +1,5 @@
+page_id: about
+title: About
+description: MongoDB workflow storage.
+components:
+- ref: "../components/about.yaml"

@@ -1,0 +1,6 @@
+{
+  "component_id": "mongodb_about",
+  "type": "markdown",
+  "title": "MongoDB",
+  "content": "Document CRUD and bounded read-only aggregation. No triggers. Choose the Linux AMD64 or ARM64 archive matching the host. Project connection fixes the database; least-privilege database credentials control access."
+}

@@ -1,0 +1,508 @@
+{
+  "actions": [
+    {
+      "action_id": "find",
+      "workflow_visible": true,
+      "title": "Find",
+      "description": "Find up to 100 documents with optional projection and ordered sort. Results use canonical Extended JSON.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "projection",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "sort",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.documents",
+        "result.count",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "find_one",
+      "workflow_visible": true,
+      "title": "Find One",
+      "description": "Find one document; missing documents return null and found false.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "projection",
+          "type": "object",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.document",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "aggregate",
+      "workflow_visible": true,
+      "title": "Aggregate",
+      "description": "Run a bounded read-only pipeline. Cross-collection, JavaScript and write stages are rejected.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "pipeline",
+          "type": "array",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.documents",
+        "result.count",
+        "result.found"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "insert_one",
+      "workflow_visible": true,
+      "title": "Insert One",
+      "description": "Insert one document. Use an explicit stable _id when deduplication is needed.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "document",
+          "type": "object",
+          "required": true
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.inserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "insert_many",
+      "workflow_visible": true,
+      "title": "Insert Many",
+      "description": "Insert 1\u2013100 documents. A failure may leave a partially inserted batch; automatic retries are disabled.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "documents",
+          "type": "array",
+          "required": true
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.inserted_ids",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "update_one",
+      "workflow_visible": true,
+      "title": "Update One",
+      "description": "Apply update operators to one matching document, with optional upsert.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "update",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "upsert",
+          "type": "boolean",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.matched_count",
+        "result.modified_count",
+        "result.upserted_count",
+        "result.upserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "update_many",
+      "workflow_visible": true,
+      "title": "Update Many",
+      "description": "Update matching documents with explicit allow_many acknowledgement; optional upsert.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "update",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "upsert",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "name": "allow_many",
+          "type": "boolean",
+          "required": true
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.matched_count",
+        "result.modified_count",
+        "result.upserted_count",
+        "result.upserted_id",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "delete_one",
+      "workflow_visible": true,
+      "title": "Delete One",
+      "description": "Delete at most one matching document. A zero-match delete succeeds with deleted_count zero.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": true
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.deleted_count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "delete_many",
+      "workflow_visible": true,
+      "title": "Delete Many",
+      "description": "Delete matching documents with explicit allow_many acknowledgement. Nonempty filter required.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "collection",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "filter",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "allow_many",
+          "type": "boolean",
+          "required": true
+        }
+      ],
+      "result_fields": [
+        "result.collection",
+        "result.deleted_count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "unknown_action",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "authentication_failed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout"
+      ],
+      "mutates_platform": false
+    }
+  ]
+}

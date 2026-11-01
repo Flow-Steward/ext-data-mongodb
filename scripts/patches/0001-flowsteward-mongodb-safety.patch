@@ -1,0 +1,851 @@
+diff --git a/internal/sources/mongodb/flowsteward_policy.go b/internal/sources/mongodb/flowsteward_policy.go
+new file mode 100644
+index 0000000..e07d1e9
+--- /dev/null
++++ b/internal/sources/mongodb/flowsteward_policy.go
+@@ -0,0 +1,93 @@
++package mongodb
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"go.mongodb.org/mongo-driver/v2/bson"
++	"go.mongodb.org/mongo-driver/v2/mongo"
++	"net"
++	"net/netip"
++	"time"
++)
++
++var flowStewardReserved = []string{
++	"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
++	"::/128", "::1/128", "64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20", "fc00::/7", "fe80::/10", "ff00::/8",
++}
++
++func flowStewardAddressAllowed(raw string, tls, allowPrivate bool) error {
++	ip, err := netip.ParseAddr(raw)
++	if err != nil {
++		return fmt.Errorf("invalid destination address")
++	}
++	ip = ip.Unmap()
++	private := !ip.IsGlobalUnicast() || ip.IsPrivate()
++	for _, value := range flowStewardReserved {
++		if netip.MustParsePrefix(value).Contains(ip) {
++			private = true
++			break
++		}
++	}
++	// IPv6 public unicast currently lives in 2000::/3; reject other special ranges.
++	if ip.Is6() && !netip.MustParsePrefix("2000::/3").Contains(ip) {
++		private = true
++	}
++	if private && !allowPrivate {
++		return fmt.Errorf("destination is not a public address")
++	}
++	if !private && !tls {
++		return fmt.Errorf("TLS is required for public destinations")
++	}
++	return nil
++}
++
++type flowStewardDialer struct{ tls, allowPrivate bool }
++
++func (d flowStewardDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
++	host, port, err := net.SplitHostPort(address)
++	if err != nil {
++		return nil, fmt.Errorf("invalid destination")
++	}
++	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
++	if err != nil {
++		return nil, fmt.Errorf("destination lookup failed")
++	}
++	if len(addresses) == 0 {
++		return nil, fmt.Errorf("destination has no addresses")
++	}
++	for _, a := range addresses {
++		if a.Zone != "" {
++			return nil, fmt.Errorf("scoped destination is forbidden")
++		}
++		if err = flowStewardAddressAllowed(a.IP.String(), d.tls, d.allowPrivate); err != nil {
++			return nil, err
++		}
++	}
++	dialer := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
++	for _, a := range addresses {
++		connection, e := dialer.DialContext(ctx, network, net.JoinHostPort(a.IP.String(), port))
++		if e == nil {
++			return connection, nil
++		}
++		err = e
++	}
++	return nil, fmt.Errorf("destination connection failed: %w", err)
++}
++func flowStewardID(id any) any {
++	if id == nil {
++		return nil
++	}
++	encoded, err := bson.MarshalExtJSON(bson.D{{Key: "id", Value: id}}, true, false)
++	if err != nil {
++		return nil
++	}
++	var doc map[string]any
++	if json.Unmarshal(encoded, &doc) != nil {
++		return nil
++	}
++	return doc["id"]
++}
++func flowStewardUpdateResult(result *mongo.UpdateResult) any {
++	return map[string]any{"matched_count": result.MatchedCount, "modified_count": result.ModifiedCount, "upserted_count": result.UpsertedCount, "upserted_id": flowStewardID(result.UpsertedID)}
++}
+diff --git a/internal/sources/mongodb/flowsteward_policy_test.go b/internal/sources/mongodb/flowsteward_policy_test.go
+new file mode 100644
+index 0000000..7df76e6
+--- /dev/null
++++ b/internal/sources/mongodb/flowsteward_policy_test.go
+@@ -0,0 +1,49 @@
++package mongodb
++
++import (
++	"go.mongodb.org/mongo-driver/v2/bson"
++	"testing"
++)
++
++func TestFlowStewardAddressPolicy(t *testing.T) {
++	for _, c := range []struct {
++		ip               string
++		tls, private, ok bool
++	}{
++		{"127.0.0.1", false, false, false}, {"127.0.0.1", false, true, true},
++		{"10.1.2.3", true, false, false}, {"10.1.2.3", false, true, true},
++		{"::ffff:127.0.0.1", true, false, false}, {"169.254.169.254", true, false, false},
++		{"192.0.2.1", true, false, false}, {"8.8.8.8", false, true, false},
++		{"8.8.8.8", true, false, true}, {"2606:4700:4700::1111", true, false, true},
++		{"fc00::1", true, false, false}, {"fe80::1", true, false, false},
++	} {
++		if got := flowStewardAddressAllowed(c.ip, c.tls, c.private); (got == nil) != c.ok {
++			t.Errorf("%+v: %v", c, got)
++		}
++	}
++}
++func TestFlowStewardCanonicalIDs(t *testing.T) {
++	if got := flowStewardID(int64(9007199254740993)); got.(map[string]any)["$numberLong"] != "9007199254740993" {
++		t.Fatalf("precision lost: %#v", got)
++	}
++	if got := flowStewardID(nil); got != nil {
++		t.Fatalf("missing ID: %#v", got)
++	}
++}
++
++func TestFlowStewardReadByteLimit(t *testing.T) {
++	if _, _, err := flowStewardReadDocument(make(bson.Raw, flowStewardReadByteLimit+1)); err == nil {
++		t.Fatal("oversized BSON accepted")
++	}
++	raw, err := bson.Marshal(bson.D{{Key: "n", Value: int64(9007199254740993)}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	doc, _, err := flowStewardReadDocument(raw)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if doc.(map[string]any)["n"].(map[string]any)["$numberLong"] != "9007199254740993" {
++		t.Fatalf("precision: %#v", doc)
++	}
++}
+diff --git a/internal/sources/mongodb/mongodb.go b/internal/sources/mongodb/mongodb.go
+index 77ea842..1a2e200 100644
+--- a/internal/sources/mongodb/mongodb.go
++++ b/internal/sources/mongodb/mongodb.go
+@@ -16,8 +16,8 @@ package mongodb
+ 
+ import (
+ 	"context"
++	"crypto/tls"
+ 	"encoding/json"
+-	"errors"
+ 	"fmt"
+ 
+ 	"github.com/goccy/go-yaml"
+@@ -49,9 +49,10 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (sources
+ }
+ 
+ type Config struct {
+-	Name string `yaml:"name" validate:"required"`
+-	Type string `yaml:"type" validate:"required"`
+-	Uri  string `yaml:"uri" validate:"required"` // MongoDB Atlas connection URI
++	Name         string `yaml:"name" validate:"required"`
++	Type         string `yaml:"type" validate:"required"`
++	AllowPrivate bool   `yaml:"allowPrivate"`
++	Uri          string `yaml:"uri" validate:"required"` // MongoDB Atlas connection URI
+ }
+ 
+ func (r Config) SourceConfigType() string {
+@@ -59,7 +60,7 @@ func (r Config) SourceConfigType() string {
+ }
+ 
+ func (r Config) Initialize(ctx context.Context, tracer trace.Tracer) (sources.Source, error) {
+-	client, err := initMongoDBClient(ctx, tracer, r.Name, r.Uri)
++	client, err := initMongoDBClient(ctx, tracer, r.Name, r.Uri, r.AllowPrivate)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to create MongoDB client: %w", err)
+ 	}
+@@ -96,23 +97,46 @@ func (s *Source) MongoClient() *mongo.Client {
+ 	return s.Client
+ }
+ 
+-func parseData(ctx context.Context, cur *mongo.Cursor) ([]any, error) {
+-	var data = []any{}
+-	err := cur.All(ctx, &data)
++const flowStewardReadByteLimit = 480 * 1024
++
++func flowStewardReadDocument(raw bson.Raw) (any, int, error) {
++	if len(raw) > flowStewardReadByteLimit {
++		return nil, 0, fmt.Errorf("MongoDB document exceeds result byte limit")
++	}
++	encoded, err := bson.MarshalExtJSON(raw, true, false)
+ 	if err != nil {
+-		return nil, err
++		return nil, 0, err
++	}
++	if len(encoded) > flowStewardReadByteLimit {
++		return nil, 0, fmt.Errorf("MongoDB document exceeds result byte limit")
+ 	}
+-	final := []any{}
+-	for _, item := range data {
+-		tmp, _ := bson.MarshalExtJSON(item, false, false)
+-		var tmp2 any
+-		err = json.Unmarshal(tmp, &tmp2)
++	var doc any
++	if err = json.Unmarshal(encoded, &doc); err != nil {
++		return nil, 0, err
++	}
++	return doc, len(encoded), nil
++}
++func parseData(ctx context.Context, cur *mongo.Cursor) ([]any, error) {
++	result := []any{}
++	total := 0
++	for cur.Next(ctx) {
++		if total+len(cur.Current) > flowStewardReadByteLimit {
++			return nil, fmt.Errorf("MongoDB response exceeds result byte limit")
++		}
++		doc, size, err := flowStewardReadDocument(cur.Current)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		final = append(final, tmp2)
++		total += size
++		if total > flowStewardReadByteLimit {
++			return nil, fmt.Errorf("MongoDB response exceeds result byte limit")
++		}
++		result = append(result, doc)
+ 	}
+-	return final, err
++	if err := cur.Err(); err != nil {
++		return nil, err
++	}
++	return result, nil
+ }
+ 
+ func (s *Source) Aggregate(ctx context.Context, pipelineString string, canonical, readOnly bool, database, collection string) ([]any, error) {
+@@ -133,7 +157,7 @@ func (s *Source) Aggregate(ctx context.Context, pipelineString string, canonical
+ 		}
+ 	}
+ 
+-	cur, err := s.MongoClient().Database(database).Collection(collection).Aggregate(ctx, pipeline)
++	cur, err := s.MongoClient().Database(database).Collection(collection).Aggregate(ctx, pipeline, options.Aggregate().SetBatchSize(1))
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -155,7 +179,7 @@ func (s *Source) Find(ctx context.Context, filterString, database, collection st
+ 		return nil, err
+ 	}
+ 
+-	cur, err := s.MongoClient().Database(database).Collection(collection).Find(ctx, filter, opts)
++	cur, err := s.MongoClient().Database(database).Collection(collection).Find(ctx, filter, opts.SetBatchSize(1))
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -171,29 +195,25 @@ func (s *Source) FindOne(ctx context.Context, filterString, database, collection
+ 	}
+ 
+ 	res := s.MongoClient().Database(database).Collection(collection).FindOne(ctx, filter, opts)
++	if res.Err() == mongo.ErrNoDocuments {
++		return []any{}, nil
++	}
+ 	if res.Err() != nil {
+ 		return nil, res.Err()
+ 	}
+ 
+-	var data any
+-	err = res.Decode(&data)
++	raw, err := res.Raw()
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-
+-	var final []any
+-	tmp, _ := bson.MarshalExtJSON(data, false, false)
+-	var tmp2 any
+-	err = json.Unmarshal(tmp, &tmp2)
++	doc, _, err := flowStewardReadDocument(raw)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	final = append(final, tmp2)
+-
+-	return final, err
++	return []any{doc}, nil
+ }
+ 
+-func (s *Source) InsertMany(ctx context.Context, jsonData string, canonical bool, database, collection string) ([]any, error) {
++func (s *Source) InsertMany(ctx context.Context, jsonData string, canonical bool, database, collection string) (any, error) {
+ 	var data = []any{}
+ 	err := bson.UnmarshalExtJSON([]byte(jsonData), canonical, &data)
+ 	if err != nil {
+@@ -204,7 +224,11 @@ func (s *Source) InsertMany(ctx context.Context, jsonData string, canonical bool
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return res.InsertedIDs, nil
++	ids := make([]any, 0, len(res.InsertedIDs))
++	for _, id := range res.InsertedIDs {
++		ids = append(ids, flowStewardID(id))
++	}
++	return map[string]any{"inserted_ids": ids}, nil
+ }
+ 
+ func (s *Source) InsertOne(ctx context.Context, jsonData string, canonical bool, database, collection string) (any, error) {
+@@ -218,10 +242,10 @@ func (s *Source) InsertOne(ctx context.Context, jsonData string, canonical bool,
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return res.InsertedID, nil
++	return map[string]any{"inserted_id": flowStewardID(res.InsertedID)}, nil
+ }
+ 
+-func (s *Source) UpdateMany(ctx context.Context, filterString string, canonical bool, updateString, database, collection string, upsert bool) ([]any, error) {
++func (s *Source) UpdateMany(ctx context.Context, filterString string, canonical bool, updateString, database, collection string, upsert bool) (any, error) {
+ 	var filter = bson.D{}
+ 	err := bson.UnmarshalExtJSON([]byte(filterString), canonical, &filter)
+ 	if err != nil {
+@@ -237,7 +261,7 @@ func (s *Source) UpdateMany(ctx context.Context, filterString string, canonical
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error updating collection: %w", err)
+ 	}
+-	return []any{res.ModifiedCount, res.UpsertedCount, res.MatchedCount}, nil
++	return flowStewardUpdateResult(res), nil
+ }
+ 
+ func (s *Source) UpdateOne(ctx context.Context, filterString string, canonical bool, updateString, database, collection string, upsert bool) (any, error) {
+@@ -256,7 +280,7 @@ func (s *Source) UpdateOne(ctx context.Context, filterString string, canonical b
+ 	if err != nil {
+ 		return nil, fmt.Errorf("error updating collection: %w", err)
+ 	}
+-	return res.ModifiedCount, nil
++	return flowStewardUpdateResult(res), nil
+ }
+ 
+ func (s *Source) DeleteMany(ctx context.Context, filterString, database, collection string) (any, error) {
+@@ -271,10 +295,7 @@ func (s *Source) DeleteMany(ctx context.Context, filterString, database, collect
+ 		return nil, err
+ 	}
+ 
+-	if res.DeletedCount == 0 {
+-		return nil, errors.New("no document found")
+-	}
+-	return res.DeletedCount, nil
++	return map[string]any{"deleted_count": res.DeletedCount}, nil
+ }
+ 
+ func (s *Source) DeleteOne(ctx context.Context, filterString, database, collection string) (any, error) {
+@@ -288,10 +309,10 @@ func (s *Source) DeleteOne(ctx context.Context, filterString, database, collecti
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return res.DeletedCount, nil
++	return map[string]any{"deleted_count": res.DeletedCount}, nil
+ }
+ 
+-func initMongoDBClient(ctx context.Context, tracer trace.Tracer, name, uri string) (*mongo.Client, error) {
++func initMongoDBClient(ctx context.Context, tracer trace.Tracer, name, uri string, privateOptions ...bool) (*mongo.Client, error) {
+ 	// Start a tracing span
+ 	ctx, span := sources.InitConnectionSpan(ctx, tracer, SourceType, name)
+ 	defer span.End()
+@@ -302,7 +323,12 @@ func initMongoDBClient(ctx context.Context, tracer trace.Tracer, name, uri strin
+ 	}
+ 
+ 	// Create a new MongoDB client
+-	clientOpts := options.Client().ApplyURI(uri).SetAppName(userAgent)
++	clientOpts := options.Client().ApplyURI(uri).SetAppName(userAgent).SetRetryReads(false).SetRetryWrites(false).SetMaxAdaptiveRetries(0)
++	if clientOpts.TLSConfig != nil {
++		clientOpts.TLSConfig.InsecureSkipVerify = false
++		clientOpts.TLSConfig.MinVersion = tls.VersionTLS12
++	}
++	clientOpts.SetDialer(flowStewardDialer{tls: clientOpts.TLSConfig != nil, allowPrivate: len(privateOptions) > 0 && privateOptions[0]})
+ 	client, err := mongo.Connect(clientOpts)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to create MongoDB client: %w", err)
+diff --git a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
+index d2d54ae..c82f25f 100644
+--- a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
++++ b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
+@@ -51,6 +51,7 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
++	LiteralPayload  bool                   `yaml:"literalPayload"`
+ 	Name            string                 `yaml:"name" validate:"required"`
+ 	Type            string                 `yaml:"type" validate:"required"`
+ 	Source          string                 `yaml:"source" validate:"required"`
+@@ -109,7 +110,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	pipelineString, err := parameters.PopulateTemplateWithJSON("MongoDBAggregatePipeline", t.PipelinePayload, paramsMap)
++	pipelineString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBAggregatePipeline", t.PipelinePayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating pipeline", err)
+ 	}
+@@ -167,3 +168,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
+index 97d74a3..91e71fd 100644
+--- a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
++++ b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
+@@ -51,16 +51,17 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
+-	Name          string                 `yaml:"name" validate:"required"`
+-	Type          string                 `yaml:"type" validate:"required"`
+-	Source        string                 `yaml:"source" validate:"required"`
+-	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
+-	Description   string                 `yaml:"description" validate:"required"`
+-	Database      string                 `yaml:"database" validate:"required"`
+-	Collection    string                 `yaml:"collection" validate:"required"`
+-	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
+-	FilterParams  parameters.Parameters  `yaml:"filterParams"`
+-	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
++	LiteralPayload bool                   `yaml:"literalPayload"`
++	Name           string                 `yaml:"name" validate:"required"`
++	Type           string                 `yaml:"type" validate:"required"`
++	Source         string                 `yaml:"source" validate:"required"`
++	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
++	Description    string                 `yaml:"description" validate:"required"`
++	Database       string                 `yaml:"database" validate:"required"`
++	Collection     string                 `yaml:"collection" validate:"required"`
++	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
++	FilterParams   parameters.Parameters  `yaml:"filterParams"`
++	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
+ 
+ 	ScopesRequired []string `yaml:"scopesRequired"`
+ }
+@@ -115,7 +116,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteManyFilter", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBDeleteManyFilter", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+@@ -173,3 +174,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
+index c224fc7..71f0541 100644
+--- a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
++++ b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
+@@ -51,16 +51,17 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
+-	Name          string                 `yaml:"name" validate:"required"`
+-	Type          string                 `yaml:"type" validate:"required"`
+-	Source        string                 `yaml:"source" validate:"required"`
+-	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
+-	Description   string                 `yaml:"description" validate:"required"`
+-	Database      string                 `yaml:"database" validate:"required"`
+-	Collection    string                 `yaml:"collection" validate:"required"`
+-	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
+-	FilterParams  parameters.Parameters  `yaml:"filterParams"`
+-	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
++	LiteralPayload bool                   `yaml:"literalPayload"`
++	Name           string                 `yaml:"name" validate:"required"`
++	Type           string                 `yaml:"type" validate:"required"`
++	Source         string                 `yaml:"source" validate:"required"`
++	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
++	Description    string                 `yaml:"description" validate:"required"`
++	Database       string                 `yaml:"database" validate:"required"`
++	Collection     string                 `yaml:"collection" validate:"required"`
++	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
++	FilterParams   parameters.Parameters  `yaml:"filterParams"`
++	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
+ 
+ 	ScopesRequired []string `yaml:"scopesRequired"`
+ }
+@@ -116,7 +117,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 
+ 	paramsMap := params.AsMap()
+ 
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteOneFilter", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBDeleteOneFilter", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+@@ -174,3 +175,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go b/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go
+new file mode 100644
+index 0000000..193d9b2
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go
+@@ -0,0 +1,11 @@
++package mongodbfind
++
++import "testing"
++
++func TestFlowStewardLiteralPayload(t *testing.T) {
++	const payload = `{"value":"{{ .secret }}"}`
++	got, err := flowStewardPopulate(true, "literal", payload, map[string]any{"secret": "MUST_NOT_EXPAND"})
++	if err != nil || got != payload {
++		t.Fatalf("literal modified: %q %v", got, err)
++	}
++}
+diff --git a/internal/tools/mongodb/mongodbfind/mongodbfind.go b/internal/tools/mongodb/mongodbfind/mongodbfind.go
+index 9d68baf..fcfd489 100644
+--- a/internal/tools/mongodb/mongodbfind/mongodbfind.go
++++ b/internal/tools/mongodb/mongodbfind/mongodbfind.go
+@@ -53,6 +53,7 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
++	LiteralPayload bool                   `yaml:"literalPayload"`
+ 	Name           string                 `yaml:"name" validate:"required"`
+ 	Type           string                 `yaml:"type" validate:"required"`
+ 	Source         string                 `yaml:"source" validate:"required"`
+@@ -117,7 +118,7 @@ type Tool struct {
+ 	manifest  tools.Manifest
+ }
+ 
+-func getOptions(ctx context.Context, sortParameters parameters.Parameters, projectPayload string, limit int64, paramsMap map[string]any) (*options.FindOptionsBuilder, error) {
++func getOptionsWithLiteral(ctx context.Context, sortParameters parameters.Parameters, projectPayload string, limit int64, paramsMap map[string]any, literal bool, sortPayload string) (*options.FindOptionsBuilder, error) {
+ 	logger, err := util.LoggerFromContext(ctx)
+ 	if err != nil {
+ 		return nil, err
+@@ -125,15 +126,21 @@ func getOptions(ctx context.Context, sortParameters parameters.Parameters, proje
+ 
+ 	opts := options.Find()
+ 
+-	sort := bson.M{}
+-	for _, p := range sortParameters {
+-		sort[p.GetName()] = paramsMap[p.GetName()]
++	if sortPayload != "" {
++		result, err := flowStewardPopulate(literal, "MongoDBFindSort", sortPayload, paramsMap)
++		if err != nil {
++			return nil, err
++		}
++		var sort bson.D
++		if err := bson.UnmarshalExtJSON([]byte(result), false, &sort); err != nil {
++			return nil, err
++		}
++		opts = opts.SetSort(sort)
+ 	}
+-	opts = opts.SetSort(sort)
+ 
+ 	if len(projectPayload) > 0 {
+ 
+-		result, err := parameters.PopulateTemplateWithJSON("MongoDBFindProjectString", projectPayload, paramsMap)
++		result, err := flowStewardPopulate(literal, "MongoDBFindProjectString", projectPayload, paramsMap)
+ 
+ 		if err != nil {
+ 			return nil, fmt.Errorf("error populating project payload: %s", err)
+@@ -163,11 +170,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindFilterString", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindFilterString", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+-	opts, err := getOptions(ctx, t.SortParams, t.ProjectPayload, t.Limit, paramsMap)
++	opts, err := getOptionsWithLiteral(ctx, t.SortParams, t.ProjectPayload, t.Limit, paramsMap, t.LiteralPayload, t.SortPayload)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating options", err)
+ 	}
+@@ -225,3 +232,14 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
++
++func getOptions(ctx context.Context, sortParameters parameters.Parameters, projectPayload string, limit int64, paramsMap map[string]any) (*options.FindOptionsBuilder, error) {
++	return getOptionsWithLiteral(ctx, sortParameters, projectPayload, limit, paramsMap, false, "")
++}
+diff --git a/internal/tools/mongodb/mongodbfindone/mongodbfindone.go b/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
+index 821a036..faa4ac7 100644
+--- a/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
++++ b/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
+@@ -53,6 +53,7 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
++	LiteralPayload bool                   `yaml:"literalPayload"`
+ 	Name           string                 `yaml:"name" validate:"required"`
+ 	Type           string                 `yaml:"type" validate:"required"`
+ 	Source         string                 `yaml:"source" validate:"required"`
+@@ -117,14 +118,14 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneFilterString", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindOneFilterString", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+ 
+ 	opts := options.FindOne()
+ 	if len(t.ProjectPayload) > 0 {
+-		result, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneProjectString", t.ProjectPayload, paramsMap)
++		result, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindOneProjectString", t.ProjectPayload, paramsMap)
+ 		if err != nil {
+ 			return nil, util.NewAgentError("error populating project payload", err)
+ 		}
+@@ -189,3 +190,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
+index 9672cb6..e710da2 100644
+--- a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
++++ b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
+@@ -47,19 +47,20 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
+ 
+ type compatibleSource interface {
+ 	MongoClient() *mongo.Client
+-	InsertMany(context.Context, string, bool, string, string) ([]any, error)
++	InsertMany(context.Context, string, bool, string, string) (any, error)
+ }
+ 
+ type Config struct {
+-	Name         string                 `yaml:"name" validate:"required"`
+-	Type         string                 `yaml:"type" validate:"required"`
+-	Source       string                 `yaml:"source" validate:"required"`
+-	AuthRequired []string               `yaml:"authRequired" validate:"required"`
+-	Description  string                 `yaml:"description" validate:"required"`
+-	Database     string                 `yaml:"database" validate:"required"`
+-	Collection   string                 `yaml:"collection" validate:"required"`
+-	Canonical    bool                   `yaml:"canonical"`
+-	Annotations  *tools.ToolAnnotations `yaml:"annotations,omitempty"`
++	LiteralPayload bool                   `yaml:"literalPayload"`
++	Name           string                 `yaml:"name" validate:"required"`
++	Type           string                 `yaml:"type" validate:"required"`
++	Source         string                 `yaml:"source" validate:"required"`
++	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
++	Description    string                 `yaml:"description" validate:"required"`
++	Database       string                 `yaml:"database" validate:"required"`
++	Collection     string                 `yaml:"collection" validate:"required"`
++	Canonical      bool                   `yaml:"canonical"`
++	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
+ 
+ 	ScopesRequired []string `yaml:"scopesRequired"`
+ }
+diff --git a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
+index 62e0d08..830b250 100644
+--- a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
++++ b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
+@@ -51,15 +51,16 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
+-	Name         string                 `yaml:"name" validate:"required"`
+-	Type         string                 `yaml:"type" validate:"required"`
+-	Source       string                 `yaml:"source" validate:"required"`
+-	AuthRequired []string               `yaml:"authRequired" validate:"required"`
+-	Description  string                 `yaml:"description" validate:"required"`
+-	Database     string                 `yaml:"database" validate:"required"`
+-	Collection   string                 `yaml:"collection" validate:"required"`
+-	Canonical    bool                   `yaml:"canonical"`
+-	Annotations  *tools.ToolAnnotations `yaml:"annotations,omitempty"`
++	LiteralPayload bool                   `yaml:"literalPayload"`
++	Name           string                 `yaml:"name" validate:"required"`
++	Type           string                 `yaml:"type" validate:"required"`
++	Source         string                 `yaml:"source" validate:"required"`
++	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
++	Description    string                 `yaml:"description" validate:"required"`
++	Database       string                 `yaml:"database" validate:"required"`
++	Collection     string                 `yaml:"collection" validate:"required"`
++	Canonical      bool                   `yaml:"canonical"`
++	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
+ 
+ 	ScopesRequired []string `yaml:"scopesRequired"`
+ }
+diff --git a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
+index 3a75fda..a948399 100644
+--- a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
++++ b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
+@@ -46,24 +46,25 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
+ 
+ type compatibleSource interface {
+ 	MongoClient() *mongo.Client
+-	UpdateMany(context.Context, string, bool, string, string, string, bool) ([]any, error)
++	UpdateMany(context.Context, string, bool, string, string, string, bool) (any, error)
+ }
+ 
+ type Config struct {
+-	Name          string                 `yaml:"name" validate:"required"`
+-	Type          string                 `yaml:"type" validate:"required"`
+-	Source        string                 `yaml:"source" validate:"required"`
+-	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
+-	Description   string                 `yaml:"description" validate:"required"`
+-	Database      string                 `yaml:"database" validate:"required"`
+-	Collection    string                 `yaml:"collection" validate:"required"`
+-	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
+-	FilterParams  parameters.Parameters  `yaml:"filterParams"`
+-	UpdatePayload string                 `yaml:"updatePayload" validate:"required"`
+-	UpdateParams  parameters.Parameters  `yaml:"updateParams" validate:"required"`
+-	Canonical     bool                   `yaml:"canonical"`
+-	Upsert        bool                   `yaml:"upsert"`
+-	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
++	LiteralPayload bool                   `yaml:"literalPayload"`
++	Name           string                 `yaml:"name" validate:"required"`
++	Type           string                 `yaml:"type" validate:"required"`
++	Source         string                 `yaml:"source" validate:"required"`
++	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
++	Description    string                 `yaml:"description" validate:"required"`
++	Database       string                 `yaml:"database" validate:"required"`
++	Collection     string                 `yaml:"collection" validate:"required"`
++	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
++	FilterParams   parameters.Parameters  `yaml:"filterParams"`
++	UpdatePayload  string                 `yaml:"updatePayload" validate:"required"`
++	UpdateParams   parameters.Parameters  `yaml:"updateParams" validate:"required"`
++	Canonical      bool                   `yaml:"canonical"`
++	Upsert         bool                   `yaml:"upsert"`
++	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
+ 
+ 	ScopesRequired []string `yaml:"scopesRequired"`
+ }
+@@ -118,11 +119,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateManyFilter", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateManyFilter", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+-	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateMany", t.UpdatePayload, paramsMap)
++	updateString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateMany", t.UpdatePayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("unable to get update", err)
+ 	}
+@@ -180,3 +181,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
+index e1d56fa..34aeb13 100644
+--- a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
++++ b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
+@@ -50,17 +50,18 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
+-	Name          string                `yaml:"name" validate:"required"`
+-	Type          string                `yaml:"type" validate:"required"`
+-	Source        string                `yaml:"source" validate:"required"`
+-	AuthRequired  []string              `yaml:"authRequired" validate:"required"`
+-	Description   string                `yaml:"description" validate:"required"`
+-	Database      string                `yaml:"database" validate:"required"`
+-	Collection    string                `yaml:"collection" validate:"required"`
+-	FilterPayload string                `yaml:"filterPayload" validate:"required"`
+-	FilterParams  parameters.Parameters `yaml:"filterParams"`
+-	UpdatePayload string                `yaml:"updatePayload" validate:"required"`
+-	UpdateParams  parameters.Parameters `yaml:"updateParams" validate:"required"`
++	LiteralPayload bool                  `yaml:"literalPayload"`
++	Name           string                `yaml:"name" validate:"required"`
++	Type           string                `yaml:"type" validate:"required"`
++	Source         string                `yaml:"source" validate:"required"`
++	AuthRequired   []string              `yaml:"authRequired" validate:"required"`
++	Description    string                `yaml:"description" validate:"required"`
++	Database       string                `yaml:"database" validate:"required"`
++	Collection     string                `yaml:"collection" validate:"required"`
++	FilterPayload  string                `yaml:"filterPayload" validate:"required"`
++	FilterParams   parameters.Parameters `yaml:"filterParams"`
++	UpdatePayload  string                `yaml:"updatePayload" validate:"required"`
++	UpdateParams   parameters.Parameters `yaml:"updateParams" validate:"required"`
+ 
+ 	Canonical   bool                   `yaml:"canonical"`
+ 	Upsert      bool                   `yaml:"upsert"`
+@@ -119,11 +120,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 	}
+ 
+ 	paramsMap := params.AsMap()
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOneFilter", t.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateOneFilter", t.FilterPayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("error populating filter", err)
+ 	}
+-	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOne", t.UpdatePayload, paramsMap)
++	updateString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateOne", t.UpdatePayload, paramsMap)
+ 	if err != nil {
+ 		return nil, util.NewAgentError("unable to get update", err)
+ 	}
+@@ -181,3 +182,10 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
++	if literal {
++		return payload, nil
++	}
++	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
