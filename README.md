@@ -69,8 +69,8 @@ Live writes require the host's durable `external_effect_id` claim. Test mode val
 
 ```sh
 ./scripts/build_toolbox.sh
-python3 scripts/package_extension.py --target linux-amd64
-python3 scripts/package_extension.py --target linux-arm64
+python3 scripts/package_extension.py --runtime-target linux-amd64
+python3 scripts/package_extension.py --runtime-target linux-arm64
 ```
 
 The build pins upstream Toolbox v1.3.0 commit `b0010060a939455d91e4f8ba62dc3e72b1892469` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are built locally and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
