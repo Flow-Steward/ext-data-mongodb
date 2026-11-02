@@ -5,7 +5,7 @@
     "data_migrations": []
   },
   "extension_id": "flowsteward.mongodb",
-  "release_version": "1.0.1",
+  "release_version": "1.0.2",
   "extension_type": "service_extension",
   "identity": {
     "display_name": "MongoDB",

@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "extension_id": "flowsteward.mongodb",
   "kind": "tool_provider",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "release_stage": "active",
   "display_name": "MongoDB",
   "description": "MongoDB document reads, writes and read-only aggregation through a minimal Google MCP Toolbox build.",
