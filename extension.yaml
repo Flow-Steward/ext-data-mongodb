@@ -2,10 +2,10 @@
   "manifest_version": 2,
   "extension_id": "flowsteward.mongodb",
   "kind": "tool_provider",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "release_stage": "active",
   "display_name": "MongoDB",
-  "description": "MongoDB document reads, writes and read-only aggregation through a minimal Google MCP Toolbox build.",
+  "description": "MongoDB Dataset JSON reads, collection discovery, and guarded workflow CRUD through minimal native Toolbox.",
   "lifecycle": {
     "data_schema_version": 1,
     "data_migrations": []
@@ -23,7 +23,8 @@
   },
   "features": [
     "tool",
-    "action"
+    "action",
+    "dataset_connector"
   ],
   "required_scopes": [
     "extension:invoke"
@@ -63,7 +64,146 @@
     "extension_contract_v2": {
       "connection_types": "contracts/connection_types.yaml",
       "operation_manifest": "contracts/operation_manifest.yaml",
-      "step_ui_manifest": "contracts/step_ui_manifest.yaml"
+      "step_ui_manifest": "contracts/step_ui_manifest.yaml",
+      "dataset_connectors": [
+        {
+          "connector_id": "mongodb",
+          "connector_type_id": "mongodb",
+          "database_kind": "mongodb",
+          "display_name": "MongoDB",
+          "description": "Bounded MongoDB collection discovery and saved read-only JSON document queries.",
+          "source_kind": "mongodb",
+          "source_extension_id": "flowsteward.mongodb",
+          "source_extension_name": "MongoDB",
+          "source_provider": "MongoDB",
+          "query_language": "json",
+          "access_mode": "read_only",
+          "runtime_kind": "local_extension",
+          "runtime_adapter_ref": "main.py",
+          "connector_catalog": [
+            {
+              "source_kind": "mongodb",
+              "connector_type_id": "mongodb",
+              "display_name": "MongoDB",
+              "query_language": "json",
+              "preset_config": {}
+            }
+          ],
+          "connection_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "host",
+              "database"
+            ],
+            "properties": {
+              "host": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "title": "Server or SRV hostname"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535,
+                "default": 27017
+              },
+              "srv": {
+                "type": "boolean",
+                "default": false
+              },
+              "tls": {
+                "type": "boolean",
+                "default": true
+              },
+              "database": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "auth_source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "default": "admin"
+              },
+              "request_timeout_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "default": 15
+              }
+            }
+          },
+          "secret_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "username": {
+                "type": "string",
+                "maxLength": 8192,
+                "title": "Username"
+              },
+              "password": {
+                "type": "string",
+                "maxLength": 8192,
+                "title": "Password"
+              }
+            }
+          },
+          "capabilities": {
+            "read_only": true,
+            "test_connection": true,
+            "schema_introspection": true,
+            "validate_query": true,
+            "preview_query": true,
+            "execute_template": true,
+            "infer_output_schema": true,
+            "write_queries": false,
+            "row_preview": true
+          },
+          "safety_profile": {
+            "access_mode": "read_only",
+            "indexes_rows": false,
+            "executes_write_queries": false,
+            "requires_saved_template": true
+          },
+          "preview_support": true,
+          "schema_refresh_support": true
+        }
+      ],
+      "resource_query_manifest": [
+        {
+          "query_id": "runtime_health",
+          "cursor_mode": "none",
+          "description": "MongoDB runtime health.",
+          "required_scopes": [
+            "extension:invoke"
+          ],
+          "result_fields": [
+            "result.status",
+            "result.extension_id"
+          ],
+          "error_codes": [
+            "invalid_payload"
+          ]
+        },
+        {
+          "query_id": "supported_connectors",
+          "cursor_mode": "none",
+          "description": "MongoDB supported connectors.",
+          "required_scopes": [
+            "extension:invoke"
+          ],
+          "result_fields": [
+            "result.connectors"
+          ],
+          "error_codes": [
+            "invalid_payload"
+          ]
+        }
+      ]
     }
   },
   "external_effects": [
@@ -115,5 +255,6 @@
     "required_scopes": [
       "extension:invoke"
     ]
-  }
+  },
+  "query_manifest": "ui/queries/queries.yaml"
 }

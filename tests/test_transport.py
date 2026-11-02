@@ -133,3 +133,16 @@ def test_native_result_budget_classification():
             }
         )
     assert exc.value.code == "response_too_large"
+
+
+def test_native_context_owns_dns_and_entire_invocation_deadline(monkeypatch):
+    """Native dialer already checks every resolved/topology IP under its context."""
+
+    def unbounded_python_dns(*args):
+        raise AssertionError("Do not resolve DNS outside the bounded native process")
+
+    monkeypatch.setattr(toolbox, "_binary", lambda: "/missing/toolbox")
+    monkeypatch.setattr(toolbox, "_endpoint", unbounded_python_dns)
+    with pytest.raises(Failure) as exc:
+        toolbox.invoke(config(), {}, {"type": "mongodb-find"}, {}, timeout_seconds=1)
+    assert exc.value.code == "provider_unavailable" and not exc.value.dispatched

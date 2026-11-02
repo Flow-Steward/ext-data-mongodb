@@ -1,21 +1,24 @@
 """Bounded managed Toolbox subprocess; no shell or caller executable overrides."""
 
 from __future__ import annotations
+
 import contextlib
 import hashlib
 import ipaddress
 import json
 import os
-from pathlib import Path
 import platform
 import selectors
 import signal
 import subprocess  # nosec B404
 import tempfile
 import time
-from flowsteward_extension_sdk import resolve_pinned_ips
-from validation import Failure, require
+from pathlib import Path
 from urllib.parse import quote, urlencode
+
+from flowsteward_extension_sdk import resolve_pinned_ips
+
+from validation import Failure, require
 
 ROOT = Path(__file__).resolve().parent
 MAX_OUTPUT = 1024 * 1024
@@ -271,8 +274,13 @@ def _result(response):
 
 
 def invoke(config, secrets, command, arguments, *, timeout_seconds):
+    deadline = time.monotonic() + timeout_seconds
     executable = _binary()
-    ip = _endpoint(config)
+    # Native MongoDB dialer resolves and validates every topology address under
+    # the subprocess deadline. A duplicate Python DNS lookup is unbounded and
+    # its result was never used by the native dialer.
+    ip = None
+    require(time.monotonic() < deadline, "Toolbox deadline exceeded.", code="timeout")
     dispatched = False
     process = None
     try:
@@ -297,7 +305,6 @@ def invoke(config, secrets, command, arguments, *, timeout_seconds):
                 env={"LANG": "C.UTF-8"},
                 start_new_session=True,
             )
-            deadline = time.monotonic() + timeout_seconds
             state = {"bytes": 0, "buffer": bytearray()}
             try:
                 _send(
@@ -311,7 +318,7 @@ def invoke(config, secrets, command, arguments, *, timeout_seconds):
                             "capabilities": {},
                             "clientInfo": {
                                 "name": "flowsteward.mongodb",
-                                "version": "1.0.0",
+                                "version": "1.1.0",
                             },
                         },
                     },

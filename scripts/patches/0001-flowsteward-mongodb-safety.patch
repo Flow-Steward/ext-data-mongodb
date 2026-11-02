@@ -1,3 +1,78 @@
+diff --git a/internal/sources/mongodb/flowsteward_collections.go b/internal/sources/mongodb/flowsteward_collections.go
+new file mode 100644
+index 0000000..f40f258
+--- /dev/null
++++ b/internal/sources/mongodb/flowsteward_collections.go
+@@ -0,0 +1,30 @@
++package mongodb
++
++import (
++ "context"
++ "fmt"
++ "go.mongodb.org/mongo-driver/v2/bson"
++ "go.mongodb.org/mongo-driver/v2/mongo"
++ "go.mongodb.org/mongo-driver/v2/mongo/options"
++)
++
++// ListCollections only exposes authorized names from the configured database.
++// The 33rd name is a truncation sentinel, never an unbounded catalog snapshot.
++func (s *Source) ListCollections(ctx context.Context, database string) ([]any,error) {
++ cur,err := s.MongoClient().Database(database).ListCollections(ctx,bson.D{},options.ListCollections().SetNameOnly(true).SetAuthorizedCollections(true).SetBatchSize(1))
++ if err != nil { return nil,err }
++ return flowStewardCollectionNames(ctx,cur)
++}
++
++func flowStewardCollectionNames(ctx context.Context, cur *mongo.Cursor) ([]any,error) {
++ defer cur.Close(ctx)
++ result := []any{}
++ for len(result)<33 && cur.Next(ctx) {
++  var row struct { Name string `bson:"name"` }
++  if err:=cur.Decode(&row);err!=nil { return nil,err }
++  if row.Name=="" || len(row.Name)>4096 { return nil,fmt.Errorf("invalid collection metadata") }
++  result=append(result,map[string]any{"name":row.Name})
++ }
++ if err:=cur.Err();err!=nil { return nil,err }
++ return result,nil
++}
+diff --git a/internal/sources/mongodb/flowsteward_collections_test.go b/internal/sources/mongodb/flowsteward_collections_test.go
+new file mode 100644
+index 0000000..148393c
+--- /dev/null
++++ b/internal/sources/mongodb/flowsteward_collections_test.go
+@@ -0,0 +1,33 @@
++package mongodb
++
++import (
++ "context"
++ "testing"
++ "go.mongodb.org/mongo-driver/v2/bson"
++ "go.mongodb.org/mongo-driver/v2/mongo"
++)
++
++func TestFlowStewardCollectionCursorBounded(t *testing.T) {
++ docs := make([]any, 40)
++ for i := range docs { docs[i] = bson.D{{Key:"name",Value:"items"}} }
++ cur, err := mongo.NewCursorFromDocuments(docs,nil,nil)
++ if err != nil { t.Fatal(err) }
++ rows,err := flowStewardCollectionNames(context.Background(),cur)
++ if err != nil || len(rows) != 33 { t.Fatalf("rows=%d err=%v",len(rows),err) }
++ if cur.ID()!=0 { t.Fatal("metadata cursor not closed") }
++}
++
++func TestFlowStewardCollectionCursorRejectsBadName(t *testing.T) {
++ cur,err := mongo.NewCursorFromDocuments([]any{bson.D{{Key:"name",Value:7}}},nil,nil)
++ if err != nil { t.Fatal(err) }
++ if _,err=flowStewardCollectionNames(context.Background(),cur);err==nil { t.Fatal("invalid name accepted") }
++}
++
++func TestFlowStewardCollectionCursorDoesNotRejectUnsupportedSelectableNames(t *testing.T) {
++ name := ""
++ for i:=0;i<121;i++ { name += "a" }
++ cur,err := mongo.NewCursorFromDocuments([]any{bson.D{{Key:"name",Value:name}},bson.D{{Key:"name",Value:"items"}}},nil,nil)
++ if err!=nil { t.Fatal(err) }
++ rows,err:=flowStewardCollectionNames(context.Background(),cur)
++ if err!=nil || len(rows)!=2 { t.Fatalf("metadata rejected real names: %v %v",rows,err) }
++}
 diff --git a/internal/sources/mongodb/flowsteward_policy.go b/internal/sources/mongodb/flowsteward_policy.go
 new file mode 100644
 index 0000000..e07d1e9
@@ -539,18 +614,19 @@ index 0000000..193d9b2
 +	}
 +}
 diff --git a/internal/tools/mongodb/mongodbfind/mongodbfind.go b/internal/tools/mongodb/mongodbfind/mongodbfind.go
-index 9d68baf..fcfd489 100644
+index 9d68baf..ad5d0a3 100644
 --- a/internal/tools/mongodb/mongodbfind/mongodbfind.go
 +++ b/internal/tools/mongodb/mongodbfind/mongodbfind.go
-@@ -53,6 +53,7 @@ type compatibleSource interface {
+@@ -53,6 +53,8 @@ type compatibleSource interface {
  }
  
  type Config struct {
++ ListCollections bool `yaml:"listCollections"`
 +	LiteralPayload bool                   `yaml:"literalPayload"`
  	Name           string                 `yaml:"name" validate:"required"`
  	Type           string                 `yaml:"type" validate:"required"`
  	Source         string                 `yaml:"source" validate:"required"`
-@@ -117,7 +118,7 @@ type Tool struct {
+@@ -117,7 +119,7 @@ type Tool struct {
  	manifest  tools.Manifest
  }
  
@@ -559,7 +635,7 @@ index 9d68baf..fcfd489 100644
  	logger, err := util.LoggerFromContext(ctx)
  	if err != nil {
  		return nil, err
-@@ -125,15 +126,21 @@ func getOptions(ctx context.Context, sortParameters parameters.Parameters, proje
+@@ -125,15 +127,21 @@ func getOptions(ctx context.Context, sortParameters parameters.Parameters, proje
  
  	opts := options.Find()
  
@@ -586,9 +662,17 @@ index 9d68baf..fcfd489 100644
  
  		if err != nil {
  			return nil, fmt.Errorf("error populating project payload: %s", err)
-@@ -163,11 +170,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+@@ -162,12 +170,19 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 		return nil, util.NewClientServerError("source used is not compatible with the tool", http.StatusInternalServerError, err)
  	}
  
++ if t.ListCollections {
++  metadata,ok:=any(source).(interface{ ListCollections(context.Context,string)([]any,error) })
++  if !ok { return nil,util.NewAgentError("collection metadata unavailable",fmt.Errorf("incompatible metadata source")) }
++  value,err:=metadata.ListCollections(ctx,t.Database)
++  if err!=nil { return nil,util.ProcessGeneralError(err) }
++  return value,nil
++ }
  	paramsMap := params.AsMap()
 -	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindFilterString", t.FilterPayload, paramsMap)
 +	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindFilterString", t.FilterPayload, paramsMap)
@@ -600,7 +684,7 @@ index 9d68baf..fcfd489 100644
  	if err != nil {
  		return nil, util.NewAgentError("error populating options", err)
  	}
-@@ -225,3 +232,14 @@ func (t Tool) GetParameters() parameters.Parameters {
+@@ -225,3 +240,14 @@ func (t Tool) GetParameters() parameters.Parameters {
  func (t Tool) GetScopesRequired() []string {
  	return t.ScopesRequired
  }

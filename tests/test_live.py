@@ -154,3 +154,161 @@ def test_live_wrong_credentials_are_redacted(monkeypatch):
     assert not result["ok"] and result["retryable"] is False
     serialized = json.dumps(result)
     assert password not in serialized and fixture["host"] not in serialized
+
+
+def test_live_dataset_discovery_scope_and_typed_reads(monkeypatch):
+    """Real host admin envelopes and packaged native driver against a restricted user."""
+    from copy import deepcopy
+    from test_datasets import request
+
+    monkeypatch.setenv("FS_ALLOW_PRIVATE_REMOTE_URLS", "1")
+    fixture = json.loads(FIXTURE.read_text())
+    if "reader_username" not in fixture:
+        pytest.skip("No restricted-reader Dataset fixture")
+
+    def run(name="preview_query", arguments=None, **extra):
+        payload = request(name, arguments)
+        args = payload["action"]["input"]
+        args["connection_config"] = {
+            "host": fixture["host"],
+            "database": fixture.get("database", "flowsteward_test"),
+            "tls": False,
+            "request_timeout_seconds": 15,
+        }
+        args["secret_refs"] = {
+            "values": {
+                "username": fixture["reader_username"],
+                "password": fixture["reader_password"],
+            }
+        }
+        args.update(extra)
+        return main.handle(payload)
+
+    # The reader has collection find privilege but no listCollections database privilege.
+    # authorizedCollections+nameOnly must enumerate only its allowed collection.
+    # Omit dataset entirely for discovery (null is deliberately not a scope bypass).
+    payload = request("introspect_schema")
+    args = payload["action"]["input"]
+    args.pop("dataset")
+    args.pop("query_template")
+    args["connection_config"] = {
+        "host": fixture["host"],
+        "database": fixture.get("database", "flowsteward_test"),
+        "tls": False,
+    }
+    args["secret_refs"] = {
+        "values": {"username": fixture["reader_username"], "password": fixture["reader_password"]}
+    }
+    result = main.handle(payload)
+    assert result["ok"], result
+    assert {r["resource_id"] for r in result["result"]["resources"]} == {"items"}
+    assert result["result"]["resources"][0]["metadata"]["sample_rows"] <= 5
+    result = run("test_connection")
+    assert result["ok"], result
+    result = run()
+    assert result["ok"] and result["result"]["rows"] == [
+        {"x": False},
+        {"x": 0},
+        {"x": None},
+        {"x": {"a": 1}},
+        {"x": [1, 2]},
+    ], result
+    assert all("_id" not in row for row in result["result"]["rows"])
+    for value, kind in [
+        (False, "boolean"),
+        (0, "integer"),
+        (None, "null"),
+        ({"a": 1}, "object"),
+        ([1, 2], "array"),
+    ]:
+        template = deepcopy(request()["action"]["input"]["query_template"])
+        template["query_definition_jsonb"]["arguments"] = {
+            "filter": {"x": {"$eq": {"$param": "v"}}},
+            "projection": {"x": 1},
+        }
+        template["param_schema_jsonb"] = {"properties": {"v": {"type": kind}}}
+        result = run(query_template=template, params={"v": value})
+        assert result["ok"] and result["result"]["rows"], result
+        assert all(row["x"] == value for row in result["result"]["rows"])
+    template = deepcopy(request()["action"]["input"]["query_template"])
+    template["query_definition_jsonb"].update(
+        operation="aggregate",
+        arguments={
+            "pipeline": [
+                {"$match": {"n": {"$gte": 1}}},
+                {"$sort": {"n": 1}},
+                {"$project": {"n": 1}},
+            ]
+        },
+    )
+    result = run(query_template=template, limits={"max_preview_rows": 2})
+    assert result["ok"] and result["result"]["rows"] == [{"n": 1}, {"n": 2}], result
+    result = run("introspect_schema")
+    assert result["ok"], result
+    assert {c["name"] for c in result["result"]["resources"][0]["columns"]} == {"x", "n"}
+    result = run(arguments={"filter": {}, "projection": {"private": 1}})
+    assert not result["ok"] and result["definitely_no_external_effect"]
+
+
+def test_live_review_discovery_budgets_and_parameter_positions(monkeypatch):
+    from copy import deepcopy
+    from test_datasets import request
+
+    monkeypatch.setenv("FS_ALLOW_PRIVATE_REMOTE_URLS", "1")
+    fixture = json.loads(FIXTURE.read_text())
+    if not fixture.get("review_cases"):
+        pytest.skip("Review live fixture must seed system.views and a 121-byte collection")
+
+    def run(name, arguments=None, **extra):
+        p = request(name, arguments)
+        a = p["action"]["input"]
+        a["connection_config"] = {
+            "host": fixture["host"],
+            "database": fixture.get("database", "flowsteward_test"),
+            "tls": False,
+        }
+        a["secret_refs"] = {
+            "values": {"username": fixture["username"], "password": fixture["password"]}
+        }
+        a.update(extra)
+        return main.handle(p)
+
+    p = request("introspect_schema")
+    a = p["action"]["input"]
+    a.pop("dataset")
+    a.pop("query_template")
+    a["connection_config"] = {
+        "host": fixture["host"],
+        "database": fixture.get("database", "flowsteward_test"),
+        "tls": False,
+    }
+    a["secret_refs"] = {
+        "values": {"username": fixture["username"], "password": fixture["password"]}
+    }
+    result = main.handle(p)
+    assert result["ok"], result
+    names = {r["resource_id"] for r in result["result"]["resources"]}
+    assert "items" in names and "system.views" not in names and "a" * 121 not in names
+    assert result["result"]["truncated"] is True
+    assert result["result"]["schema_snapshot"]["metadata"]["skipped_unsupported_collections"] >= 2
+    result = run("introspect_schema", limits={"max_bytes": 1024})
+    assert not result["ok"] and result["definitely_no_external_effect"]
+    for arguments, kind, value in [
+        ({"filter": {}, "projection": {"x": 1}, "limit": {"$param": "v"}}, "integer", 2),
+        ({"filter": {}, "projection": {"x": 1}, "sort": {"n": {"$param": "v"}}}, "integer", 1),
+        ({"filter": {}, "projection": {"$param": "v"}}, "object", {"x": 1}),
+    ]:
+        template = deepcopy(request()["action"]["input"]["query_template"])
+        template["query_definition_jsonb"]["arguments"] = arguments
+        template["param_schema_jsonb"] = {"properties": {"v": {"type": kind}}}
+        result = run("validate_query", query_template=template)
+        assert result["ok"] and result["result"]["valid"], result
+        assert result["result"]["validation_status"] == "sample_parameters_required"
+        result = run("execute_template", query_template=template, params={"v": value})
+        assert result["ok"] and result["result"]["rows"], result
+        assert all("_id" not in row for row in result["result"]["rows"])
+        result = run("execute_template", query_template=template)
+        assert not result["ok"] and result["definitely_no_external_effect"]
+        bad = 0 if kind == "integer" else {"private": 1}
+        result = run("execute_template", query_template=template, params={"v": bad})
+        assert not result["ok"] and result["definitely_no_external_effect"]

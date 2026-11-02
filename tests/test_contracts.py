@@ -1,6 +1,7 @@
 """MongoDB public contract parity."""
 
 from pathlib import Path
+
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,15 +24,26 @@ def test_identity_and_parity():
     m = load("extension.yaml")
     d = load("extension-descriptor.yaml")
     assert m["extension_id"] == d["extension_id"] == "flowsteward.mongodb"
-    assert m["version"] == d["release_version"] == "1.0.2"
-    assert m["features"] == ["tool", "action"]
+    assert m["version"] == d["release_version"] == "1.1.0"
+    assert m["features"] == ["tool", "action", "dataset_connector"]
     assert m["runtime"] == d["runtime"]
     assert m["egress"] == {"connection_fields": ["mongodb.host"]}
     ops = load("contracts/operation_manifest.yaml")["operations"]
     acts = load("ui/actions/actions.yaml")["actions"]
     forms = load("contracts/step_ui_manifest.yaml")["forms"]
     assert {o["operation_id"] for o in ops} == READS | WRITES
-    assert {a["action_id"] for a in acts} == READS | WRITES
+    assert {a["action_id"] for a in acts if a.get("workflow_visible")} == READS | WRITES
+    assert {a["action_id"] for a in acts if not a.get("workflow_visible")} == {
+        "test_connection",
+        "introspect_schema",
+        "validate_query",
+        "preview_query",
+        "execute_template",
+        "infer_output_schema",
+    }
+    connector = m["runtime"]["extension_contract_v2"]["dataset_connectors"][0]
+    assert connector["query_language"] == "json"
+    assert connector["capabilities"]["write_queries"] is False
     assert {f["operation_id"] for f in forms} == READS | WRITES
     assert {e["operation_id"] for e in m["external_effects"]} == WRITES
     for op in ops:

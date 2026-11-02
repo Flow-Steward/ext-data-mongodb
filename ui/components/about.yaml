@@ -2,5 +2,5 @@
   "component_id": "mongodb_about",
   "type": "markdown",
   "title": "MongoDB",
-  "content": "Document CRUD and bounded read-only aggregation. No triggers. Choose the Linux AMD64 or ARM64 archive matching the host. Project connection fixes the database; least-privilege database credentials control access."
+  "content": "Native JSON Dataset document reads with explicit fields and bounded collection discovery, plus project-scoped workflow CRUD. Dataset aggregation supports only match/sort/skip/limit/inclusion projection. Samples show at most five documents per collection and 100 fields overall. No triggers. Choose the Linux AMD64 or ARM64 archive matching the host. The configured database and MongoDB credentials determine access; workflow writes require a durable effect claim and are suppressed in test mode."
 }

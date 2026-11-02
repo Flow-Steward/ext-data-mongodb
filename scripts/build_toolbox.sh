@@ -7,10 +7,24 @@ TOOLBOX_COMMIT=b0010060a939455d91e4f8ba62dc3e72b1892469
 GO_IMAGE=golang:1.26.2-bookworm@sha256:47ce5636e9936b2c5cbf708925578ef386b4f8872aec74a67bd13a627d242b19
 PATCH=scripts/patches/0001-flowsteward-mongodb-safety.patch
 
-docker run --rm \
+BUILD_OWNER=${FS_BUILD_OWNER:-fs-nosql-mongodb-20261102}
+MOD_VOLUME="$BUILD_OWNER-mod"
+BUILD_VOLUME="$BUILD_OWNER-build"
+for volume in "$MOD_VOLUME" "$BUILD_VOLUME"; do
+  if docker volume inspect "$volume" >/dev/null 2>&1; then
+    test "$(docker volume inspect "$volume" --format '{{index .Labels "owner"}}')" = "$BUILD_OWNER"
+  else
+    docker volume create --label "owner=$BUILD_OWNER" "$volume" >/dev/null
+  fi
+done
+cleanup() { docker volume rm "$MOD_VOLUME" "$BUILD_VOLUME" >/dev/null; }
+trap cleanup EXIT HUP INT TERM
+
+docker run --rm --name "$BUILD_OWNER-native-build" --label "owner=$BUILD_OWNER" \
+  --memory=2g --cpus=1 -e GOMAXPROCS=1 \
   -e TOOLBOX_TAG="$TOOLBOX_TAG" -e TOOLBOX_COMMIT="$TOOLBOX_COMMIT" \
   -e GO_IMAGE="$GO_IMAGE" -e PATCH="$PATCH" -e PATCH_CONTENT="$(cat "$ROOT/$PATCH")" \
-  -v flow-steward-mongodb-go-cache:/go/pkg/mod -v flow-steward-mongodb-build-cache:/root/.cache/go-build \
+  -v "$MOD_VOLUME:/go/pkg/mod" -v "$BUILD_VOLUME:/root/.cache/go-build" \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -v "$ROOT:/out" "$GO_IMAGE" sh -c '
     set -eu

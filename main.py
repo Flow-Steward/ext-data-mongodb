@@ -1,9 +1,13 @@
 """MongoDB host-v2 workflow entrypoint."""
 
 from __future__ import annotations
+
 import json
 import sys
+
 from flowsteward_extension_sdk import runtime_context_from_payload
+
+import datasets
 import toolbox
 from commands import WRITES, compile_command, normalize_result
 from validation import Failure, bounded_json, connection_values, require
@@ -14,7 +18,7 @@ def handle(payload):
     dispatched = False
     try:
         runtime_context_from_payload(payload)
-        require(payload.get("mode") == "action", "An action invocation is required.")
+        bounded_json(payload)
         action = payload.get("action") or {}
         name = action.get("action_id")
         args = action.get("input") or {}
@@ -22,6 +26,22 @@ def handle(payload):
         bounded_json(args)
         context = payload["runtime_context"]
         require(type(context.get("test_mode", False)) is bool, "test_mode must be boolean.")
+        if payload.get("mode") == "query":
+            query_id = (payload.get("query") or {}).get("query_id")
+            require(
+                query_id in {"supported_connectors", "runtime_health"}, "Unknown MongoDB query."
+            )
+            result = (
+                {"connectors": datasets.catalog()}
+                if query_id == "supported_connectors"
+                else {"status": "healthy", "extension_id": "flowsteward.mongodb"}
+            )
+            return {"ok": True, "result": result, "errors": []}
+        require(payload.get("mode") == "action", "An action invocation is required.")
+        if name in datasets.ACTIONS:
+            result = datasets.handle(name, args, toolbox.invoke)
+            bounded_json(result, 400 * 1024)
+            return {"ok": True, "result": result, "errors": []}
         connection = (action.get("target") or {}).get("connection") or {}
         require(
             isinstance(connection, dict)

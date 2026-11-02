@@ -84,3 +84,52 @@ From a Flow Steward checkout, run the supported container gate against this stan
 Unit tests cover contracts, input limits, literal data, write claims, failure semantics, transport deadlines and archive boundaries. Live tests opt in through ignored `tests/live-mongodb.local.json` with `host`, `port`, `database`, `auth_source`, `username`, `password`, `tls`. Use a disposable test database. They exercise authenticated document CRUD, Extended JSON, projection, sorting, upsert and aggregation. Without a fixture they are explicitly skipped. Local integration uses MongoDB 8.0.17; Atlas/SRV, replica failover and a real public TLS deployment require separate environment acceptance.
 
 Apache-2.0. See `LICENSE` and `NOTICE`. This is an independent Flow Steward integration, unaffiliated with MongoDB, Inc.
+
+## Native Dataset queries (1.1.0)
+
+Dataset queries use JSON, with exact collection names and explicit top-level output fields:
+
+```json
+{"resource_id":"orders","operation":"find","arguments":{"filter":{"status":{"$eq":{"$param":"status"}}},"projection":{"status":1,"total":1},"sort":{"total":-1}}}
+```
+
+Declare parameters with JSON Schema scalar, object or array types. Single-member
+`{"$param":"name"}` markers are allowed only inside arguments and preserve types.
+`find` supports filter, inclusion projection, sort and limit. Filters support
+field equality, `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`
+and `$and`/`$or`/`$nor`. Field names are conservative ASCII top-level names; nested
+field selection, computed projections, arbitrary expressions and scripts are unsupported.
+`aggregate` supports only `$match`, `$sort`, `$skip`, `$limit` and inclusion
+`$project`, and requires an explicit projection. Collections and fields are checked
+against the Dataset scope before dispatch and output fields are checked again.
+Implicit `_id` is suppressed unless explicitly selected. Writes, cross-collection
+stages and JavaScript BSON are rejected, including inside parameter objects.
+These Dataset operations provide document reads, with no Atlas vector or RAG claim.
+
+Collection discovery lists only names authorized by MongoDB in the configured
+database, with at most 32 collections and a 33rd sentinel for truncation. Schema
+refresh samples at most five documents per collection and reports at most 100
+top-level fields in total. Types are observations from samples, not schema guarantees;
+empty collections have no invented columns. Mixed fields report `value_type: json`,
+all observed sample types and a JSON Schema union; empty query inference uses `{}`
+for unknown field types. Values retain their native JSON types. Scoped refresh projects only allowed
+fields and does not discover other collections. Results identify sampling/truncation.
+
+Queries and bound arguments are limited to 64 KiB, depth 20 and 10,000 nodes.
+Preview and runtime row caps are separate, each 1–100; response budgets are at most
+400 KiB. A single deadline of at most 30 seconds includes discovery and sampling;
+there are no retries. Canonical Extended JSON becomes JSON numeric, boolean,
+ObjectId string and date (ISO string or epoch milliseconds) values while nested
+objects and arrays are preserved. Integers beyond JavaScript's safe range and
+Decimal128 values remain strings to preserve precision.
+Workflow CRUD remains project scoped and writes still require a durable effect
+claim; test mode suppresses writes. Dataset admin read actions accept host admin
+contexts with null account and project IDs. No triggers are provided.
+
+Discovery scans at most 33 raw authorized collection names. Names outside the
+conservative selectable-name rules (for example `system.views` or names above
+120 UTF-8 bytes) are skipped without sampling; metadata reports a skipped count
+and truncation. Caller byte limits apply to the complete assembled metadata.
+Validation with unresolved typed parameters reports `sample_parameters_required`
+and `required_sample_params`: static structure/types are checked, while actual
+values are required for complete scope/range validation and every execution.
