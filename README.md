@@ -6,8 +6,8 @@ An independent MongoDB extension with document reads and writes and bounded read
 
 Choose the ZIP matching the **Linux host** architecture, not the machine running your browser:
 
-- `flowsteward.mongodb-1.0.1-linux-amd64.zip`
-- `flowsteward.mongodb-1.0.1-linux-arm64.zip`
+- `flowsteward.mongodb-1.0.2-linux-amd64.zip`
+- `flowsteward.mongodb-1.0.2-linux-arm64.zip`
 
 Each ZIP contains one MongoDB-only Google MCP Toolbox executable, the host-v2 adapter, manifests, and source/build provenance. Verify `SHA256SUMS` before importing the archive. Flow Steward platform 1.4.0 or newer and public extension SDK 0.4.0 are required.
 

@@ -23,7 +23,7 @@ def test_identity_and_parity():
     m = load("extension.yaml")
     d = load("extension-descriptor.yaml")
     assert m["extension_id"] == d["extension_id"] == "flowsteward.mongodb"
-    assert m["version"] == d["release_version"] == "1.0.1"
+    assert m["version"] == d["release_version"] == "1.0.2"
     assert m["features"] == ["tool", "action"]
     assert m["runtime"] == d["runtime"]
     assert m["egress"] == {"connection_fields": ["mongodb.host"]}

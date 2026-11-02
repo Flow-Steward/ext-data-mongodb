@@ -13,5 +13,5 @@ policy for discovered MongoDB endpoints. Only MongoDB source and tool packages
 are registered. Build pins and patch accompany the package; native checksums
 are recorded in toolbox-provenance.json and SHA256SUMS.
 
-The original leaf icon is provided by Flow Steward contributors. This project
+The icon is official MongoDB brand artwork; see BRAND-ASSETS.md for its source. This project
 is not affiliated with MongoDB, Inc. MongoDB is a trademark of its owner.
