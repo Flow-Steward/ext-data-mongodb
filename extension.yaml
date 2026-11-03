@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "extension_id": "flowsteward.mongodb",
   "kind": "tool_provider",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "release_stage": "active",
   "display_name": "MongoDB",
   "description": "MongoDB Dataset JSON reads, collection discovery, and guarded workflow CRUD through minimal native Toolbox.",
@@ -59,7 +59,7 @@
   "runtime": {
     "contract_version": "extension_host_v2",
     "compatibility": {
-      "platform_min": "1.4.0"
+      "platform_min": "1.5.0"
     },
     "extension_contract_v2": {
       "connection_types": "contracts/connection_types.yaml",

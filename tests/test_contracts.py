@@ -24,7 +24,7 @@ def test_identity_and_parity():
     m = load("extension.yaml")
     d = load("extension-descriptor.yaml")
     assert m["extension_id"] == d["extension_id"] == "flowsteward.mongodb"
-    assert m["version"] == d["release_version"] == "1.1.0"
+    assert m["version"] == d["release_version"] == "1.1.1"
     assert m["features"] == ["tool", "action", "dataset_connector"]
     assert m["runtime"] == d["runtime"]
     assert m["egress"] == {"connection_fields": ["mongodb.host"]}
@@ -72,3 +72,14 @@ def test_connection_contract():
     assert c[0]["secret_schema"]["additionalProperties"] is False
     assert set(c[0]["secret_schema"]["properties"]) == {"username", "password"}
     assert c[0]["capabilities"]["workflow_trigger"] is False
+
+
+def test_native_dataset_requires_platform_1_5_in_both_descriptors():
+    minimums = {
+        filename: load(filename)["runtime"]["compatibility"]["platform_min"]
+        for filename in ("extension.yaml", "extension-descriptor.yaml")
+    }
+    assert minimums == {
+        "extension.yaml": "1.5.0",
+        "extension-descriptor.yaml": "1.5.0",
+    }
