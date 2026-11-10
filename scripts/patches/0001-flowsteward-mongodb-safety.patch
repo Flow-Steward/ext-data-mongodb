@@ -1,81 +1,109 @@
 diff --git a/internal/sources/mongodb/flowsteward_collections.go b/internal/sources/mongodb/flowsteward_collections.go
 new file mode 100644
-index 0000000..f40f258
+index 0000000000..b84e2de8e6
 --- /dev/null
 +++ b/internal/sources/mongodb/flowsteward_collections.go
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,40 @@
 +package mongodb
 +
 +import (
-+ "context"
-+ "fmt"
-+ "go.mongodb.org/mongo-driver/v2/bson"
-+ "go.mongodb.org/mongo-driver/v2/mongo"
-+ "go.mongodb.org/mongo-driver/v2/mongo/options"
++	"context"
++	"fmt"
++	"go.mongodb.org/mongo-driver/v2/bson"
++	"go.mongodb.org/mongo-driver/v2/mongo"
++	"go.mongodb.org/mongo-driver/v2/mongo/options"
 +)
 +
 +// ListCollections only exposes authorized names from the configured database.
 +// The 33rd name is a truncation sentinel, never an unbounded catalog snapshot.
-+func (s *Source) ListCollections(ctx context.Context, database string) ([]any,error) {
-+ cur,err := s.MongoClient().Database(database).ListCollections(ctx,bson.D{},options.ListCollections().SetNameOnly(true).SetAuthorizedCollections(true).SetBatchSize(1))
-+ if err != nil { return nil,err }
-+ return flowStewardCollectionNames(ctx,cur)
++func (s *Source) ListCollections(ctx context.Context, database string) ([]any, error) {
++	cur, err := s.MongoClient().Database(database).ListCollections(ctx, bson.D{}, options.ListCollections().SetNameOnly(true).SetAuthorizedCollections(true).SetBatchSize(1))
++	if err != nil {
++		return nil, err
++	}
++	return flowStewardCollectionNames(ctx, cur)
 +}
 +
-+func flowStewardCollectionNames(ctx context.Context, cur *mongo.Cursor) ([]any,error) {
-+ defer cur.Close(ctx)
-+ result := []any{}
-+ for len(result)<33 && cur.Next(ctx) {
-+  var row struct { Name string `bson:"name"` }
-+  if err:=cur.Decode(&row);err!=nil { return nil,err }
-+  if row.Name=="" || len(row.Name)>4096 { return nil,fmt.Errorf("invalid collection metadata") }
-+  result=append(result,map[string]any{"name":row.Name})
-+ }
-+ if err:=cur.Err();err!=nil { return nil,err }
-+ return result,nil
++func flowStewardCollectionNames(ctx context.Context, cur *mongo.Cursor) ([]any, error) {
++	defer cur.Close(ctx)
++	result := []any{}
++	for len(result) < 33 && cur.Next(ctx) {
++		var row struct {
++			Name string `bson:"name"`
++		}
++		if err := cur.Decode(&row); err != nil {
++			return nil, err
++		}
++		if row.Name == "" || len(row.Name) > 4096 {
++			return nil, fmt.Errorf("invalid collection metadata")
++		}
++		result = append(result, map[string]any{"name": row.Name})
++	}
++	if err := cur.Err(); err != nil {
++		return nil, err
++	}
++	return result, nil
 +}
 diff --git a/internal/sources/mongodb/flowsteward_collections_test.go b/internal/sources/mongodb/flowsteward_collections_test.go
 new file mode 100644
-index 0000000..148393c
+index 0000000000..e990e85453
 --- /dev/null
 +++ b/internal/sources/mongodb/flowsteward_collections_test.go
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,51 @@
 +package mongodb
 +
 +import (
-+ "context"
-+ "testing"
-+ "go.mongodb.org/mongo-driver/v2/bson"
-+ "go.mongodb.org/mongo-driver/v2/mongo"
++	"context"
++	"go.mongodb.org/mongo-driver/v2/bson"
++	"go.mongodb.org/mongo-driver/v2/mongo"
++	"testing"
 +)
 +
 +func TestFlowStewardCollectionCursorBounded(t *testing.T) {
-+ docs := make([]any, 40)
-+ for i := range docs { docs[i] = bson.D{{Key:"name",Value:"items"}} }
-+ cur, err := mongo.NewCursorFromDocuments(docs,nil,nil)
-+ if err != nil { t.Fatal(err) }
-+ rows,err := flowStewardCollectionNames(context.Background(),cur)
-+ if err != nil || len(rows) != 33 { t.Fatalf("rows=%d err=%v",len(rows),err) }
-+ if cur.ID()!=0 { t.Fatal("metadata cursor not closed") }
++	docs := make([]any, 40)
++	for i := range docs {
++		docs[i] = bson.D{{Key: "name", Value: "items"}}
++	}
++	cur, err := mongo.NewCursorFromDocuments(docs, nil, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	rows, err := flowStewardCollectionNames(context.Background(), cur)
++	if err != nil || len(rows) != 33 {
++		t.Fatalf("rows=%d err=%v", len(rows), err)
++	}
++	if cur.ID() != 0 {
++		t.Fatal("metadata cursor not closed")
++	}
 +}
 +
 +func TestFlowStewardCollectionCursorRejectsBadName(t *testing.T) {
-+ cur,err := mongo.NewCursorFromDocuments([]any{bson.D{{Key:"name",Value:7}}},nil,nil)
-+ if err != nil { t.Fatal(err) }
-+ if _,err=flowStewardCollectionNames(context.Background(),cur);err==nil { t.Fatal("invalid name accepted") }
++	cur, err := mongo.NewCursorFromDocuments([]any{bson.D{{Key: "name", Value: 7}}}, nil, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err = flowStewardCollectionNames(context.Background(), cur); err == nil {
++		t.Fatal("invalid name accepted")
++	}
 +}
 +
 +func TestFlowStewardCollectionCursorDoesNotRejectUnsupportedSelectableNames(t *testing.T) {
-+ name := ""
-+ for i:=0;i<121;i++ { name += "a" }
-+ cur,err := mongo.NewCursorFromDocuments([]any{bson.D{{Key:"name",Value:name}},bson.D{{Key:"name",Value:"items"}}},nil,nil)
-+ if err!=nil { t.Fatal(err) }
-+ rows,err:=flowStewardCollectionNames(context.Background(),cur)
-+ if err!=nil || len(rows)!=2 { t.Fatalf("metadata rejected real names: %v %v",rows,err) }
++	name := ""
++	for i := 0; i < 121; i++ {
++		name += "a"
++	}
++	cur, err := mongo.NewCursorFromDocuments([]any{bson.D{{Key: "name", Value: name}}, bson.D{{Key: "name", Value: "items"}}}, nil, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	rows, err := flowStewardCollectionNames(context.Background(), cur)
++	if err != nil || len(rows) != 2 {
++		t.Fatalf("metadata rejected real names: %v %v", rows, err)
++	}
 +}
 diff --git a/internal/sources/mongodb/flowsteward_policy.go b/internal/sources/mongodb/flowsteward_policy.go
 new file mode 100644
-index 0000000..e07d1e9
+index 0000000000..e07d1e981a
 --- /dev/null
 +++ b/internal/sources/mongodb/flowsteward_policy.go
 @@ -0,0 +1,93 @@
@@ -174,7 +202,7 @@ index 0000000..e07d1e9
 +}
 diff --git a/internal/sources/mongodb/flowsteward_policy_test.go b/internal/sources/mongodb/flowsteward_policy_test.go
 new file mode 100644
-index 0000000..7df76e6
+index 0000000000..7df76e6802
 --- /dev/null
 +++ b/internal/sources/mongodb/flowsteward_policy_test.go
 @@ -0,0 +1,49 @@
@@ -228,7 +256,7 @@ index 0000000..7df76e6
 +	}
 +}
 diff --git a/internal/sources/mongodb/mongodb.go b/internal/sources/mongodb/mongodb.go
-index 77ea842..1a2e200 100644
+index b94c22f945..8734634dfa 100644
 --- a/internal/sources/mongodb/mongodb.go
 +++ b/internal/sources/mongodb/mongodb.go
 @@ -16,8 +16,8 @@ package mongodb
@@ -264,7 +292,7 @@ index 77ea842..1a2e200 100644
  	if err != nil {
  		return nil, fmt.Errorf("unable to create MongoDB client: %w", err)
  	}
-@@ -96,23 +97,46 @@ func (s *Source) MongoClient() *mongo.Client {
+@@ -101,23 +102,46 @@ func (s *Source) MongoClient() *mongo.Client {
  	return s.Client
  }
  
@@ -322,7 +350,7 @@ index 77ea842..1a2e200 100644
  }
  
  func (s *Source) Aggregate(ctx context.Context, pipelineString string, canonical, readOnly bool, database, collection string) ([]any, error) {
-@@ -133,7 +157,7 @@ func (s *Source) Aggregate(ctx context.Context, pipelineString string, canonical
+@@ -138,7 +162,7 @@ func (s *Source) Aggregate(ctx context.Context, pipelineString string, canonical
  		}
  	}
  
@@ -331,7 +359,7 @@ index 77ea842..1a2e200 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -155,7 +179,7 @@ func (s *Source) Find(ctx context.Context, filterString, database, collection st
+@@ -160,7 +184,7 @@ func (s *Source) Find(ctx context.Context, filterString, database, collection st
  		return nil, err
  	}
  
@@ -340,7 +368,7 @@ index 77ea842..1a2e200 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -171,29 +195,25 @@ func (s *Source) FindOne(ctx context.Context, filterString, database, collection
+@@ -176,29 +200,25 @@ func (s *Source) FindOne(ctx context.Context, filterString, database, collection
  	}
  
  	res := s.MongoClient().Database(database).Collection(collection).FindOne(ctx, filter, opts)
@@ -377,7 +405,7 @@ index 77ea842..1a2e200 100644
  	var data = []any{}
  	err := bson.UnmarshalExtJSON([]byte(jsonData), canonical, &data)
  	if err != nil {
-@@ -204,7 +224,11 @@ func (s *Source) InsertMany(ctx context.Context, jsonData string, canonical bool
+@@ -209,7 +229,11 @@ func (s *Source) InsertMany(ctx context.Context, jsonData string, canonical bool
  	if err != nil {
  		return nil, err
  	}
@@ -390,7 +418,7 @@ index 77ea842..1a2e200 100644
  }
  
  func (s *Source) InsertOne(ctx context.Context, jsonData string, canonical bool, database, collection string) (any, error) {
-@@ -218,10 +242,10 @@ func (s *Source) InsertOne(ctx context.Context, jsonData string, canonical bool,
+@@ -223,10 +247,10 @@ func (s *Source) InsertOne(ctx context.Context, jsonData string, canonical bool,
  	if err != nil {
  		return nil, err
  	}
@@ -403,7 +431,7 @@ index 77ea842..1a2e200 100644
  	var filter = bson.D{}
  	err := bson.UnmarshalExtJSON([]byte(filterString), canonical, &filter)
  	if err != nil {
-@@ -237,7 +261,7 @@ func (s *Source) UpdateMany(ctx context.Context, filterString string, canonical
+@@ -242,7 +266,7 @@ func (s *Source) UpdateMany(ctx context.Context, filterString string, canonical
  	if err != nil {
  		return nil, fmt.Errorf("error updating collection: %w", err)
  	}
@@ -412,7 +440,7 @@ index 77ea842..1a2e200 100644
  }
  
  func (s *Source) UpdateOne(ctx context.Context, filterString string, canonical bool, updateString, database, collection string, upsert bool) (any, error) {
-@@ -256,7 +280,7 @@ func (s *Source) UpdateOne(ctx context.Context, filterString string, canonical b
+@@ -261,7 +285,7 @@ func (s *Source) UpdateOne(ctx context.Context, filterString string, canonical b
  	if err != nil {
  		return nil, fmt.Errorf("error updating collection: %w", err)
  	}
@@ -421,7 +449,7 @@ index 77ea842..1a2e200 100644
  }
  
  func (s *Source) DeleteMany(ctx context.Context, filterString, database, collection string) (any, error) {
-@@ -271,10 +295,7 @@ func (s *Source) DeleteMany(ctx context.Context, filterString, database, collect
+@@ -276,10 +300,7 @@ func (s *Source) DeleteMany(ctx context.Context, filterString, database, collect
  		return nil, err
  	}
  
@@ -433,7 +461,7 @@ index 77ea842..1a2e200 100644
  }
  
  func (s *Source) DeleteOne(ctx context.Context, filterString, database, collection string) (any, error) {
-@@ -288,10 +309,10 @@ func (s *Source) DeleteOne(ctx context.Context, filterString, database, collecti
+@@ -293,10 +314,10 @@ func (s *Source) DeleteOne(ctx context.Context, filterString, database, collecti
  	if err != nil {
  		return nil, err
  	}
@@ -446,7 +474,7 @@ index 77ea842..1a2e200 100644
  	// Start a tracing span
  	ctx, span := sources.InitConnectionSpan(ctx, tracer, SourceType, name)
  	defer span.End()
-@@ -302,7 +323,12 @@ func initMongoDBClient(ctx context.Context, tracer trace.Tracer, name, uri strin
+@@ -307,7 +328,12 @@ func initMongoDBClient(ctx context.Context, tracer trace.Tracer, name, uri strin
  	}
  
  	// Create a new MongoDB client
@@ -460,30 +488,66 @@ index 77ea842..1a2e200 100644
  	client, err := mongo.Connect(clientOpts)
  	if err != nil {
  		return nil, fmt.Errorf("unable to create MongoDB client: %w", err)
+diff --git a/internal/tools/mongodb/mongodbaggregate/flowsteward_source_test.go b/internal/tools/mongodb/mongodbaggregate/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..368674aa51
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbaggregate/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbaggregate_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbaggregate"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbaggregate.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
-index d2d54ae..c82f25f 100644
+index fd3c731a16..4f3e79a36c 100644
 --- a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
 +++ b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate.go
 @@ -51,6 +51,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
-+	LiteralPayload  bool                   `yaml:"literalPayload"`
- 	Name            string                 `yaml:"name" validate:"required"`
- 	Type            string                 `yaml:"type" validate:"required"`
- 	Source          string                 `yaml:"source" validate:"required"`
-@@ -109,7 +110,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -71,6 +72,9 @@ func (cfg Config) ToolConfigType() string {
+ }
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -136,7 +140,7 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
- 	paramsMap := params.AsMap()
--	pipelineString, err := parameters.PopulateTemplateWithJSON("MongoDBAggregatePipeline", t.PipelinePayload, paramsMap)
-+	pipelineString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBAggregatePipeline", t.PipelinePayload, paramsMap)
+-	pipelineString, err := parameters.PopulateTemplateWithJSON("MongoDBAggregatePipeline", t.Cfg.PipelinePayload, paramsMap)
++	pipelineString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBAggregatePipeline", t.Cfg.PipelinePayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating pipeline", err)
  	}
-@@ -167,3 +168,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -146,3 +150,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -491,51 +555,82 @@ index d2d54ae..c82f25f 100644
 +		return payload, nil
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate_test.go b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate_test.go
+index 216b04eba0..112518a89b 100644
+--- a/internal/tools/mongodb/mongodbaggregate/mongodbaggregate_test.go
++++ b/internal/tools/mongodb/mongodbaggregate/mongodbaggregate_test.go
+@@ -202,8 +202,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbdeletemany/flowsteward_source_test.go b/internal/tools/mongodb/mongodbdeletemany/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..12ac347a60
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbdeletemany/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbdeletemany_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeletemany"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbdeletemany.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
 +}
 diff --git a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
-index 97d74a3..91e71fd 100644
+index 684eb3d279..75d3727cd8 100644
 --- a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
 +++ b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany.go
-@@ -51,16 +51,17 @@ type compatibleSource interface {
+@@ -51,6 +51,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
--	Name          string                 `yaml:"name" validate:"required"`
--	Type          string                 `yaml:"type" validate:"required"`
--	Source        string                 `yaml:"source" validate:"required"`
--	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
--	Description   string                 `yaml:"description" validate:"required"`
--	Database      string                 `yaml:"database" validate:"required"`
--	Collection    string                 `yaml:"collection" validate:"required"`
--	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
--	FilterParams  parameters.Parameters  `yaml:"filterParams"`
--	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
-+	Name           string                 `yaml:"name" validate:"required"`
-+	Type           string                 `yaml:"type" validate:"required"`
-+	Source         string                 `yaml:"source" validate:"required"`
-+	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
-+	Description    string                 `yaml:"description" validate:"required"`
-+	Database       string                 `yaml:"database" validate:"required"`
-+	Collection     string                 `yaml:"collection" validate:"required"`
-+	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
-+	FilterParams   parameters.Parameters  `yaml:"filterParams"`
-+	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
- 
- 	ScopesRequired []string `yaml:"scopesRequired"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -69,6 +70,9 @@ func (cfg Config) ToolConfigType() string {
  }
-@@ -115,7 +116,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -134,7 +138,7 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
- 	paramsMap := params.AsMap()
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteManyFilter", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBDeleteManyFilter", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteManyFilter", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBDeleteManyFilter", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
-@@ -173,3 +174,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -144,3 +148,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -544,50 +639,81 @@ index 97d74a3..91e71fd 100644
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
 +}
+diff --git a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany_test.go b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany_test.go
+index 67307a9b83..1568af4520 100644
+--- a/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany_test.go
++++ b/internal/tools/mongodb/mongodbdeletemany/mongodbdeletemany_test.go
+@@ -198,8 +198,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbdeleteone/flowsteward_source_test.go b/internal/tools/mongodb/mongodbdeleteone/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..3f89ddd475
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbdeleteone/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbdeleteone_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeleteone"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbdeleteone.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
-index c224fc7..71f0541 100644
+index 6b077dadee..6e14ccc259 100644
 --- a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
 +++ b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone.go
-@@ -51,16 +51,17 @@ type compatibleSource interface {
+@@ -51,6 +51,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
--	Name          string                 `yaml:"name" validate:"required"`
--	Type          string                 `yaml:"type" validate:"required"`
--	Source        string                 `yaml:"source" validate:"required"`
--	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
--	Description   string                 `yaml:"description" validate:"required"`
--	Database      string                 `yaml:"database" validate:"required"`
--	Collection    string                 `yaml:"collection" validate:"required"`
--	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
--	FilterParams  parameters.Parameters  `yaml:"filterParams"`
--	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
-+	Name           string                 `yaml:"name" validate:"required"`
-+	Type           string                 `yaml:"type" validate:"required"`
-+	Source         string                 `yaml:"source" validate:"required"`
-+	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
-+	Description    string                 `yaml:"description" validate:"required"`
-+	Database       string                 `yaml:"database" validate:"required"`
-+	Collection     string                 `yaml:"collection" validate:"required"`
-+	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
-+	FilterParams   parameters.Parameters  `yaml:"filterParams"`
-+	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
- 
- 	ScopesRequired []string `yaml:"scopesRequired"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -69,6 +70,9 @@ func (cfg Config) ToolConfigType() string {
  }
-@@ -116,7 +117,7 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
  
- 	paramsMap := params.AsMap()
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -134,7 +138,7 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
+ 	}
  
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteOneFilter", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBDeleteOneFilter", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBDeleteOneFilter", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBDeleteOneFilter", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
-@@ -174,3 +175,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -144,3 +148,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -595,10 +721,88 @@ index c224fc7..71f0541 100644
 +		return payload, nil
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
++}
+diff --git a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone_test.go b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone_test.go
+index 5950cfda6b..52d87399f8 100644
+--- a/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone_test.go
++++ b/internal/tools/mongodb/mongodbdeleteone/mongodbdeleteone_test.go
+@@ -198,8 +198,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbfind/flowsteward_callpath_test.go b/internal/tools/mongodb/mongodbfind/flowsteward_callpath_test.go
+new file mode 100644
+index 0000000000..6a656e1b5f
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbfind/flowsteward_callpath_test.go
+@@ -0,0 +1,57 @@
++package mongodbfind
++
++import (
++	"context"
++	"github.com/goccy/go-yaml"
++	"github.com/googleapis/mcp-toolbox/internal/sources"
++	"github.com/googleapis/mcp-toolbox/internal/testutils"
++	"github.com/googleapis/mcp-toolbox/internal/util/parameters"
++	"go.mongodb.org/mongo-driver/v2/mongo"
++	"go.mongodb.org/mongo-driver/v2/mongo/options"
++	"strings"
++	"testing"
++)
++
++type workflowCallSource struct {
++	sources.Source
++	filter, collection string
++	calls              int
++}
++
++func (*workflowCallSource) MongoClient() *mongo.Client { return nil }
++func (s *workflowCallSource) Find(_ context.Context, filter, database, collection string, _ *options.FindOptionsBuilder) ([]any, error) {
++	s.calls++
++	s.filter = filter
++	s.collection = collection
++	return []any{}, nil
++}
++func TestFlowStewardLiteralInvokeCallPath(t *testing.T) {
++	ctx, err := testutils.ContextWithNewLogger()
++	if err != nil {
++		t.Fatal(err)
++	}
++	decoder := yaml.NewDecoder(strings.NewReader(`type: mongodb-find
++source: s
++description: bounded
++collection: fixed
++database: db
++limit: 2
++literalPayload: true
++filterPayload: '{"value":"{{.secret}}"}'
++`))
++	cfg, err := newConfig(ctx, "workflow", decoder)
++	if err != nil {
++		t.Fatal(err)
++	}
++	tool, err := cfg.Initialize(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	source := &workflowCallSource{}
++	if _, err := tool.Invoke(ctx, source, parameters.ParamValues{{Name: "secret", Value: "must-not-expand"}, {Name: "collection", Value: "must-not-select"}}, ""); err != nil {
++		t.Fatal(err)
++	}
++	if source.calls != 1 || source.filter != `{"value":"{{.secret}}"}` || source.collection != "fixed" {
++		t.Fatalf("payload or collection escaped: %d %q %q", source.calls, source.filter, source.collection)
++	}
 +}
 diff --git a/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go b/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go
 new file mode 100644
-index 0000000..193d9b2
+index 0000000000..193d9b2f30
 --- /dev/null
 +++ b/internal/tools/mongodb/mongodbfind/flowsteward_literal_test.go
 @@ -0,0 +1,11 @@
@@ -613,21 +817,57 @@ index 0000000..193d9b2
 +		t.Fatalf("literal modified: %q %v", got, err)
 +	}
 +}
+diff --git a/internal/tools/mongodb/mongodbfind/flowsteward_source_test.go b/internal/tools/mongodb/mongodbfind/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..42ac79e810
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbfind/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbfind_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbfind"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbfind.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed", Limit: 1}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbfind/mongodbfind.go b/internal/tools/mongodb/mongodbfind/mongodbfind.go
-index 9d68baf..ad5d0a3 100644
+index 12f1e5125a..45ffc3c56a 100644
 --- a/internal/tools/mongodb/mongodbfind/mongodbfind.go
 +++ b/internal/tools/mongodb/mongodbfind/mongodbfind.go
 @@ -53,6 +53,8 @@ type compatibleSource interface {
  }
  
  type Config struct {
-+ ListCollections bool `yaml:"listCollections"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
- 	Name           string                 `yaml:"name" validate:"required"`
- 	Type           string                 `yaml:"type" validate:"required"`
- 	Source         string                 `yaml:"source" validate:"required"`
-@@ -117,7 +119,7 @@ type Tool struct {
- 	manifest  tools.Manifest
++	ListCollections         bool `yaml:"listCollections"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -76,6 +78,9 @@ func (cfg Config) ToolConfigType() string {
+ }
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -133,7 +138,7 @@ func (t Tool) ValidateSource(source sources.Source) error {
+ 	return nil
  }
  
 -func getOptions(ctx context.Context, sortParameters parameters.Parameters, projectPayload string, limit int64, paramsMap map[string]any) (*options.FindOptionsBuilder, error) {
@@ -635,7 +875,7 @@ index 9d68baf..ad5d0a3 100644
  	logger, err := util.LoggerFromContext(ctx)
  	if err != nil {
  		return nil, err
-@@ -125,15 +127,21 @@ func getOptions(ctx context.Context, sortParameters parameters.Parameters, proje
+@@ -141,15 +146,21 @@ func getOptions(ctx context.Context, sortParameters parameters.Parameters, proje
  
  	opts := options.Find()
  
@@ -662,31 +902,43 @@ index 9d68baf..ad5d0a3 100644
  
  		if err != nil {
  			return nil, fmt.Errorf("error populating project payload: %s", err)
-@@ -162,12 +170,19 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
- 		return nil, util.NewClientServerError("source used is not compatible with the tool", http.StatusInternalServerError, err)
+@@ -177,6 +188,19 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	if !ok {
+ 		return nil, util.NewClientServerError("source used is not compatible with the tool", http.StatusInternalServerError, nil)
+ 	}
++	if t.Cfg.ListCollections {
++		metadata, ok := any(source).(interface {
++			ListCollections(context.Context, string) ([]any, error)
++		})
++		if !ok {
++			return nil, util.NewAgentError("collection metadata unavailable", fmt.Errorf("incompatible metadata source"))
++		}
++		value, err := metadata.ListCollections(ctx, t.Cfg.Database)
++		if err != nil {
++			return nil, util.ProcessGeneralError(err)
++		}
++		return value, nil
++	}
+ 	paramsMap := params.AsMap()
+ 
+ 	collection, tbErr := mongodbcommon.ResolveCollection(t.Cfg.Collection, paramsMap)
+@@ -184,11 +208,11 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
-+ if t.ListCollections {
-+  metadata,ok:=any(source).(interface{ ListCollections(context.Context,string)([]any,error) })
-+  if !ok { return nil,util.NewAgentError("collection metadata unavailable",fmt.Errorf("incompatible metadata source")) }
-+  value,err:=metadata.ListCollections(ctx,t.Database)
-+  if err!=nil { return nil,util.ProcessGeneralError(err) }
-+  return value,nil
-+ }
- 	paramsMap := params.AsMap()
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindFilterString", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindFilterString", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindFilterString", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBFindFilterString", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
--	opts, err := getOptions(ctx, t.SortParams, t.ProjectPayload, t.Limit, paramsMap)
-+	opts, err := getOptionsWithLiteral(ctx, t.SortParams, t.ProjectPayload, t.Limit, paramsMap, t.LiteralPayload, t.SortPayload)
+-	opts, err := getOptions(ctx, t.Cfg.SortParams, t.Cfg.ProjectPayload, t.Cfg.Limit, paramsMap)
++	opts, err := getOptionsWithLiteral(ctx, t.Cfg.SortParams, t.Cfg.ProjectPayload, t.Cfg.Limit, paramsMap, t.Cfg.LiteralPayload, t.Cfg.SortPayload)
  	if err != nil {
  		return nil, util.NewAgentError("error populating options", err)
  	}
-@@ -225,3 +240,14 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -198,3 +222,14 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -699,38 +951,89 @@ index 9d68baf..ad5d0a3 100644
 +func getOptions(ctx context.Context, sortParameters parameters.Parameters, projectPayload string, limit int64, paramsMap map[string]any) (*options.FindOptionsBuilder, error) {
 +	return getOptionsWithLiteral(ctx, sortParameters, projectPayload, limit, paramsMap, false, "")
 +}
+diff --git a/internal/tools/mongodb/mongodbfind/mongodbfind_test.go b/internal/tools/mongodb/mongodbfind/mongodbfind_test.go
+index fd055c1293..2c3fb35f6d 100644
+--- a/internal/tools/mongodb/mongodbfind/mongodbfind_test.go
++++ b/internal/tools/mongodb/mongodbfind/mongodbfind_test.go
+@@ -205,8 +205,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbfindone/flowsteward_source_test.go b/internal/tools/mongodb/mongodbfindone/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..ff96624b73
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbfindone/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbfindone_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbfindone"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbfindone.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbfindone/mongodbfindone.go b/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
-index 821a036..faa4ac7 100644
+index e15698a8a5..1bfeda72ae 100644
 --- a/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
 +++ b/internal/tools/mongodb/mongodbfindone/mongodbfindone.go
 @@ -53,6 +53,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
-+	LiteralPayload bool                   `yaml:"literalPayload"`
- 	Name           string                 `yaml:"name" validate:"required"`
- 	Type           string                 `yaml:"type" validate:"required"`
- 	Source         string                 `yaml:"source" validate:"required"`
-@@ -117,14 +118,14 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -73,6 +74,9 @@ func (cfg Config) ToolConfigType() string {
+ }
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -138,14 +142,14 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
- 	paramsMap := params.AsMap()
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneFilterString", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindOneFilterString", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneFilterString", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBFindOneFilterString", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
  
  	opts := options.FindOne()
- 	if len(t.ProjectPayload) > 0 {
--		result, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneProjectString", t.ProjectPayload, paramsMap)
-+		result, err := flowStewardPopulate(t.LiteralPayload, "MongoDBFindOneProjectString", t.ProjectPayload, paramsMap)
+ 	if len(t.Cfg.ProjectPayload) > 0 {
+-		result, err := parameters.PopulateTemplateWithJSON("MongoDBFindOneProjectString", t.Cfg.ProjectPayload, paramsMap)
++		result, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBFindOneProjectString", t.Cfg.ProjectPayload, paramsMap)
  		if err != nil {
  			return nil, util.NewAgentError("error populating project payload", err)
  		}
-@@ -189,3 +190,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -162,3 +166,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -739,11 +1042,52 @@ index 821a036..faa4ac7 100644
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
 +}
+diff --git a/internal/tools/mongodb/mongodbfindone/mongodbfindone_test.go b/internal/tools/mongodb/mongodbfindone/mongodbfindone_test.go
+index d510dc4556..98451ba511 100644
+--- a/internal/tools/mongodb/mongodbfindone/mongodbfindone_test.go
++++ b/internal/tools/mongodb/mongodbfindone/mongodbfindone_test.go
+@@ -200,8 +200,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbinsertmany/flowsteward_source_test.go b/internal/tools/mongodb/mongodbinsertmany/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..6c325a32af
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbinsertmany/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbinsertmany_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbinsertmany"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbinsertmany.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
-index 9672cb6..e710da2 100644
+index 16a4f2c588..ebf670c751 100644
 --- a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
 +++ b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany.go
-@@ -47,19 +47,20 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
+@@ -47,10 +47,11 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
  
  type compatibleSource interface {
  	MongoClient() *mongo.Client
@@ -752,63 +1096,129 @@ index 9672cb6..e710da2 100644
  }
  
  type Config struct {
--	Name         string                 `yaml:"name" validate:"required"`
--	Type         string                 `yaml:"type" validate:"required"`
--	Source       string                 `yaml:"source" validate:"required"`
--	AuthRequired []string               `yaml:"authRequired" validate:"required"`
--	Description  string                 `yaml:"description" validate:"required"`
--	Database     string                 `yaml:"database" validate:"required"`
--	Collection   string                 `yaml:"collection" validate:"required"`
--	Canonical    bool                   `yaml:"canonical"`
--	Annotations  *tools.ToolAnnotations `yaml:"annotations,omitempty"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
-+	Name           string                 `yaml:"name" validate:"required"`
-+	Type           string                 `yaml:"type" validate:"required"`
-+	Source         string                 `yaml:"source" validate:"required"`
-+	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
-+	Description    string                 `yaml:"description" validate:"required"`
-+	Database       string                 `yaml:"database" validate:"required"`
-+	Collection     string                 `yaml:"collection" validate:"required"`
-+	Canonical      bool                   `yaml:"canonical"`
-+	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
- 
- 	ScopesRequired []string `yaml:"scopesRequired"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string   `yaml:"type" validate:"required"`
+ 	Source                  string   `yaml:"source" validate:"required"`
+@@ -68,6 +69,9 @@ func (cfg Config) ToolConfigType() string {
  }
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+diff --git a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany_test.go b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany_test.go
+index 502eef6f0f..28d7e02337 100644
+--- a/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany_test.go
++++ b/internal/tools/mongodb/mongodbinsertmany/mongodbinsertmany_test.go
+@@ -233,8 +233,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbinsertone/flowsteward_source_test.go b/internal/tools/mongodb/mongodbinsertone/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..c84440daba
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbinsertone/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbinsertone_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbinsertone"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbinsertone.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
-index 62e0d08..830b250 100644
+index a24e00482b..5ea921b2cd 100644
 --- a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
 +++ b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone.go
-@@ -51,15 +51,16 @@ type compatibleSource interface {
+@@ -51,6 +51,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
--	Name         string                 `yaml:"name" validate:"required"`
--	Type         string                 `yaml:"type" validate:"required"`
--	Source       string                 `yaml:"source" validate:"required"`
--	AuthRequired []string               `yaml:"authRequired" validate:"required"`
--	Description  string                 `yaml:"description" validate:"required"`
--	Database     string                 `yaml:"database" validate:"required"`
--	Collection   string                 `yaml:"collection" validate:"required"`
--	Canonical    bool                   `yaml:"canonical"`
--	Annotations  *tools.ToolAnnotations `yaml:"annotations,omitempty"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
-+	Name           string                 `yaml:"name" validate:"required"`
-+	Type           string                 `yaml:"type" validate:"required"`
-+	Source         string                 `yaml:"source" validate:"required"`
-+	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
-+	Description    string                 `yaml:"description" validate:"required"`
-+	Database       string                 `yaml:"database" validate:"required"`
-+	Collection     string                 `yaml:"collection" validate:"required"`
-+	Canonical      bool                   `yaml:"canonical"`
-+	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
- 
- 	ScopesRequired []string `yaml:"scopesRequired"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string   `yaml:"type" validate:"required"`
+ 	Source                  string   `yaml:"source" validate:"required"`
+@@ -68,6 +69,9 @@ func (cfg Config) ToolConfigType() string {
  }
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+diff --git a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone_test.go b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone_test.go
+index 62f201ebd7..4efe788036 100644
+--- a/internal/tools/mongodb/mongodbinsertone/mongodbinsertone_test.go
++++ b/internal/tools/mongodb/mongodbinsertone/mongodbinsertone_test.go
+@@ -234,8 +234,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbupdatemany/flowsteward_source_test.go b/internal/tools/mongodb/mongodbupdatemany/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..fc10fe7842
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbupdatemany/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbupdatemany_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbupdatemany"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbupdatemany.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
-index 3a75fda..a948399 100644
+index 2e5b91ee27..b5306cac96 100644
 --- a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
 +++ b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany.go
-@@ -46,24 +46,25 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
+@@ -46,10 +46,11 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (tools.T
  
  type compatibleSource interface {
  	MongoClient() *mongo.Client
@@ -817,55 +1227,37 @@ index 3a75fda..a948399 100644
  }
  
  type Config struct {
--	Name          string                 `yaml:"name" validate:"required"`
--	Type          string                 `yaml:"type" validate:"required"`
--	Source        string                 `yaml:"source" validate:"required"`
--	AuthRequired  []string               `yaml:"authRequired" validate:"required"`
--	Description   string                 `yaml:"description" validate:"required"`
--	Database      string                 `yaml:"database" validate:"required"`
--	Collection    string                 `yaml:"collection" validate:"required"`
--	FilterPayload string                 `yaml:"filterPayload" validate:"required"`
--	FilterParams  parameters.Parameters  `yaml:"filterParams"`
--	UpdatePayload string                 `yaml:"updatePayload" validate:"required"`
--	UpdateParams  parameters.Parameters  `yaml:"updateParams" validate:"required"`
--	Canonical     bool                   `yaml:"canonical"`
--	Upsert        bool                   `yaml:"upsert"`
--	Annotations   *tools.ToolAnnotations `yaml:"annotations,omitempty"`
-+	LiteralPayload bool                   `yaml:"literalPayload"`
-+	Name           string                 `yaml:"name" validate:"required"`
-+	Type           string                 `yaml:"type" validate:"required"`
-+	Source         string                 `yaml:"source" validate:"required"`
-+	AuthRequired   []string               `yaml:"authRequired" validate:"required"`
-+	Description    string                 `yaml:"description" validate:"required"`
-+	Database       string                 `yaml:"database" validate:"required"`
-+	Collection     string                 `yaml:"collection" validate:"required"`
-+	FilterPayload  string                 `yaml:"filterPayload" validate:"required"`
-+	FilterParams   parameters.Parameters  `yaml:"filterParams"`
-+	UpdatePayload  string                 `yaml:"updatePayload" validate:"required"`
-+	UpdateParams   parameters.Parameters  `yaml:"updateParams" validate:"required"`
-+	Canonical      bool                   `yaml:"canonical"`
-+	Upsert         bool                   `yaml:"upsert"`
-+	Annotations    *tools.ToolAnnotations `yaml:"annotations,omitempty"`
- 
- 	ScopesRequired []string `yaml:"scopesRequired"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -72,6 +73,9 @@ func (cfg Config) ToolConfigType() string {
  }
-@@ -118,11 +119,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -137,11 +141,11 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
- 	paramsMap := params.AsMap()
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateManyFilter", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateManyFilter", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateManyFilter", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBUpdateManyFilter", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
--	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateMany", t.UpdatePayload, paramsMap)
-+	updateString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateMany", t.UpdatePayload, paramsMap)
+-	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateMany", t.Cfg.UpdatePayload, paramsMap)
++	updateString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBUpdateMany", t.Cfg.UpdatePayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("unable to get update", err)
  	}
-@@ -180,3 +181,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -151,3 +155,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -874,57 +1266,86 @@ index 3a75fda..a948399 100644
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
 +}
+diff --git a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany_test.go b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany_test.go
+index 8ac6484057..0e5a374b22 100644
+--- a/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany_test.go
++++ b/internal/tools/mongodb/mongodbupdatemany/mongodbupdatemany_test.go
+@@ -350,8 +350,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}
+diff --git a/internal/tools/mongodb/mongodbupdateone/flowsteward_source_test.go b/internal/tools/mongodb/mongodbupdateone/flowsteward_source_test.go
+new file mode 100644
+index 0000000000..c8f0e4c666
+--- /dev/null
++++ b/internal/tools/mongodb/mongodbupdateone/flowsteward_source_test.go
+@@ -0,0 +1,20 @@
++package mongodbupdateone_test
++
++import (
++	"context"
++	"github.com/googleapis/mcp-toolbox/internal/sources/mongodb"
++	"github.com/googleapis/mcp-toolbox/internal/tools"
++	"github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbupdateone"
++	"testing"
++)
++
++func TestFlowStewardActualSourceCompatibility(t *testing.T) {
++	cfg := mongodbupdateone.Config{ConfigBase: tools.ConfigBase{Name: "actual-source", Description: "fixed workflow"}, Collection: "fixed"}
++	tool, err := cfg.Initialize(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := tool.ValidateSource(&mongodb.Source{}); err != nil {
++		t.Fatalf("actual managed MongoDB source rejected: %v", err)
++	}
++}
 diff --git a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
-index e1d56fa..34aeb13 100644
+index 180404da42..a3969c98b3 100644
 --- a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
 +++ b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone.go
-@@ -50,17 +50,18 @@ type compatibleSource interface {
+@@ -50,6 +50,7 @@ type compatibleSource interface {
  }
  
  type Config struct {
--	Name          string                `yaml:"name" validate:"required"`
--	Type          string                `yaml:"type" validate:"required"`
--	Source        string                `yaml:"source" validate:"required"`
--	AuthRequired  []string              `yaml:"authRequired" validate:"required"`
--	Description   string                `yaml:"description" validate:"required"`
--	Database      string                `yaml:"database" validate:"required"`
--	Collection    string                `yaml:"collection" validate:"required"`
--	FilterPayload string                `yaml:"filterPayload" validate:"required"`
--	FilterParams  parameters.Parameters `yaml:"filterParams"`
--	UpdatePayload string                `yaml:"updatePayload" validate:"required"`
--	UpdateParams  parameters.Parameters `yaml:"updateParams" validate:"required"`
-+	LiteralPayload bool                  `yaml:"literalPayload"`
-+	Name           string                `yaml:"name" validate:"required"`
-+	Type           string                `yaml:"type" validate:"required"`
-+	Source         string                `yaml:"source" validate:"required"`
-+	AuthRequired   []string              `yaml:"authRequired" validate:"required"`
-+	Description    string                `yaml:"description" validate:"required"`
-+	Database       string                `yaml:"database" validate:"required"`
-+	Collection     string                `yaml:"collection" validate:"required"`
-+	FilterPayload  string                `yaml:"filterPayload" validate:"required"`
-+	FilterParams   parameters.Parameters `yaml:"filterParams"`
-+	UpdatePayload  string                `yaml:"updatePayload" validate:"required"`
-+	UpdateParams   parameters.Parameters `yaml:"updateParams" validate:"required"`
++	LiteralPayload          bool `yaml:"literalPayload"`
+ 	tools.ConfigBase        `yaml:",inline"`
+ 	Type                    string                `yaml:"type" validate:"required"`
+ 	Source                  string                `yaml:"source" validate:"required"`
+@@ -73,6 +74,9 @@ func (cfg Config) ToolConfigType() string {
+ }
  
- 	Canonical   bool                   `yaml:"canonical"`
- 	Upsert      bool                   `yaml:"upsert"`
-@@ -119,11 +120,11 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ func (cfg Config) Initialize(context.Context) (tools.Tool, error) {
++	if cfg.Collection == "" || len(cfg.CollectionAllowedValues) != 0 {
++		return nil, fmt.Errorf("fixed collection required")
++	}
+ 	if cfg.Description == "" {
+ 		return nil, fmt.Errorf("description is required for tool %q", cfg.Name)
+ 	}
+@@ -138,11 +142,11 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 		return nil, tbErr
  	}
  
- 	paramsMap := params.AsMap()
--	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOneFilter", t.FilterPayload, paramsMap)
-+	filterString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateOneFilter", t.FilterPayload, paramsMap)
+-	filterString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOneFilter", t.Cfg.FilterPayload, paramsMap)
++	filterString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBUpdateOneFilter", t.Cfg.FilterPayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("error populating filter", err)
  	}
--	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOne", t.UpdatePayload, paramsMap)
-+	updateString, err := flowStewardPopulate(t.LiteralPayload, "MongoDBUpdateOne", t.UpdatePayload, paramsMap)
+-	updateString, err := parameters.PopulateTemplateWithJSON("MongoDBUpdateOne", t.Cfg.UpdatePayload, paramsMap)
++	updateString, err := flowStewardPopulate(t.Cfg.LiteralPayload, "MongoDBUpdateOne", t.Cfg.UpdatePayload, paramsMap)
  	if err != nil {
  		return nil, util.NewAgentError("unable to get update", err)
  	}
-@@ -181,3 +182,10 @@ func (t Tool) GetParameters() parameters.Parameters {
- func (t Tool) GetScopesRequired() []string {
- 	return t.ScopesRequired
+@@ -152,3 +156,10 @@ func (t Tool) Invoke(ctx context.Context, s sources.Source, params parameters.Pa
+ 	}
+ 	return resp, nil
  }
 +
 +func flowStewardPopulate(literal bool, name, payload string, params map[string]any) (string, error) {
@@ -933,3 +1354,18 @@ index e1d56fa..34aeb13 100644
 +	}
 +	return parameters.PopulateTemplateWithJSON(name, payload, params)
 +}
+diff --git a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone_test.go b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone_test.go
+index 1909a242bc..bf564e269c 100644
+--- a/internal/tools/mongodb/mongodbupdateone/mongodbupdateone_test.go
++++ b/internal/tools/mongodb/mongodbupdateone/mongodbupdateone_test.go
+@@ -344,8 +344,8 @@ func TestRuntimeCollection(t *testing.T) {
+ 		wantAllowed   int
+ 		wantErr       bool
+ 	}{
+-		{"omitted exposes a required runtime param", "", nil, true, 0, false},
+-		{"omitted with allowed values restricts the param", "", []string{"orders", "customers"}, true, 2, false},
++		{"omitted collection is rejected by workflow policy", "", nil, false, 0, true},
++		{"runtime collection allowlist is rejected by workflow policy", "", []string{"orders", "customers"}, false, 0, true},
+ 		{"set in config exposes no runtime param", "test_coll", nil, false, 0, false},
+ 		{"collection and allowedValues together is an error", "test_coll", []string{"orders"}, false, 0, true},
+ 	}

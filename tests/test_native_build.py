@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class NativeBuildTests(unittest.TestCase):
     def test_pinned_source_and_patch(self):
         provenance = json.loads((ROOT / "toolbox-provenance.json").read_text())
-        self.assertEqual(provenance["tag"], "v1.3.0")
-        self.assertEqual(provenance["commit"], "b0010060a939455d91e4f8ba62dc3e72b1892469")
+        self.assertEqual(provenance["tag"], "v1.16.0")
+        self.assertEqual(provenance["commit"], "06ea49d9a487a72c22419b5a8d5c22c11f0d7485")
         patch = ROOT / provenance["patch"]
         self.assertEqual(hashlib.sha256(patch.read_bytes()).hexdigest(), provenance["patch_sha256"])
         self.assertIn("@sha256:", provenance["go_image"])
@@ -27,9 +27,9 @@ class NativeBuildTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(binary).hexdigest(), details["sha256"])
 
     def test_minimal_import_build(self):
-        script = (ROOT / "scripts" / "build_toolbox.sh").read_text()
+        script = ((ROOT / "scripts/build_toolbox.sh").read_text() + (ROOT / "scripts/build_inside.sh").read_text())
         self.assertIn("= 10", script)
-        self.assertIn("sources\\/mongodb", script)
+        self.assertIn("sources/mongodb", script)
         self.assertNotIn("sources/redis", script)
         self.assertIn("CGO_ENABLED=0", script)
         self.assertIn(

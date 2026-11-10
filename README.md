@@ -73,7 +73,7 @@ python3 scripts/package_extension.py --runtime-target linux-amd64
 python3 scripts/package_extension.py --runtime-target linux-arm64
 ```
 
-The build pins upstream Toolbox v1.3.0 commit `b0010060a939455d91e4f8ba62dc3e72b1892469` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are built locally and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
+The build pins upstream Toolbox v1.16.0 commit `06ea49d9a487a72c22419b5a8d5c22c11f0d7485` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are built locally and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
 
 From a Flow Steward checkout, run the supported container gate against this standalone checkout:
 
