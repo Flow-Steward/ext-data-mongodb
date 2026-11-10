@@ -4,21 +4,12 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TOOLBOX_TAG=v1.3.0
 TOOLBOX_COMMIT=b0010060a939455d91e4f8ba62dc3e72b1892469
-GO_IMAGE=golang:1.26.2-bookworm@sha256:47ce5636e9936b2c5cbf708925578ef386b4f8872aec74a67bd13a627d242b19
+GO_IMAGE=golang:1.26.10-bookworm@sha256:5de7c99eb78ca5e515a4c340235d0955ec5964a5071c492c15503d7c267da473
 PATCH=scripts/patches/0001-flowsteward-mongodb-safety.patch
 
 BUILD_OWNER=${FS_BUILD_OWNER:-fs-nosql-mongodb-20261102}
-MOD_VOLUME="$BUILD_OWNER-mod"
-BUILD_VOLUME="$BUILD_OWNER-build"
-for volume in "$MOD_VOLUME" "$BUILD_VOLUME"; do
-  if docker volume inspect "$volume" >/dev/null 2>&1; then
-    test "$(docker volume inspect "$volume" --format '{{index .Labels "owner"}}')" = "$BUILD_OWNER"
-  else
-    docker volume create --label "owner=$BUILD_OWNER" "$volume" >/dev/null
-  fi
-done
-cleanup() { docker volume rm "$MOD_VOLUME" "$BUILD_VOLUME" >/dev/null; }
-trap cleanup EXIT HUP INT TERM
+MOD_VOLUME=flow-steward-db-batch-go-cache
+BUILD_VOLUME=flow-steward-db-batch-build-cache
 
 docker run --rm --name "$BUILD_OWNER-native-build" --label "owner=$BUILD_OWNER" \
   --memory=2g --cpus=1 -e GOMAXPROCS=1 \
@@ -32,6 +23,10 @@ docker run --rm --name "$BUILD_OWNER-native-build" --label "owner=$BUILD_OWNER" 
       https://github.com/googleapis/mcp-toolbox.git /src
     test "$(git -C /src rev-parse HEAD)" = "$TOOLBOX_COMMIT"
     cd /src
+    git apply /out/scripts/patches/0000-security-baseline.patch
+    printf "%s\n" "7f367f79f68cc28cfcb8c7d36c5533ef79f5016aaeba4443a795a46132105fb5  go.mod" "ca2ace78373b79e7c2b048e69ef22abfb93f1b3a537b7f035ad7c1a0c28542e9  go.sum" | sha256sum -c -
+    export GOFLAGS=-mod=readonly GOTOOLCHAIN=local
+    sha256sum go.mod go.sum > /tmp/fs-security-module-lock
     printf "%s\n" "$PATCH_CONTENT" > /tmp/mongodb.patch
     git apply /tmp/mongodb.patch
     awk '\''/internal\/(sources|tools)\// {
@@ -52,6 +47,7 @@ docker run --rm --name "$BUILD_OWNER-native-build" --label "owner=$BUILD_OWNER" 
       chmod 0755 "/tmp/mongodb-bin/$target/toolbox"
       echo "[PASS] $target: $(stat -c %s "/tmp/mongodb-bin/$target/toolbox") bytes"
     done
+    sha256sum -c /tmp/fs-security-module-lock
     {
       printf "{\n  \"tag\": \"%s\",\n  \"commit\": \"%s\",\n  \"go_image\": \"%s\",\n" "$TOOLBOX_TAG" "$TOOLBOX_COMMIT" "$GO_IMAGE"
       printf "  \"source_date_epoch\": 1779400183,\n  \"patch\": \"%s\",\n  \"patch_sha256\": \"%s\",\n" "$PATCH" "$(sha256sum /tmp/mongodb.patch | cut -d " " -f 1)"
@@ -79,3 +75,5 @@ docker run --rm --name "$BUILD_OWNER-native-build" --label "owner=$BUILD_OWNER" 
     chown "$HOST_UID:$HOST_GID" "$pending"
     mv -f "$pending" /out/toolbox-provenance.json
   '
+
+python3 "$ROOT/scripts/native_build_info.py"
