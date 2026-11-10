@@ -18,5 +18,6 @@
     "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbupdatemany",
     "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeleteone",
     "github.com/googleapis/mcp-toolbox/internal/tools/mongodb/mongodbdeletemany"
-  ]
+  ],
+  "go_image_role": "bootstrap"
 }
