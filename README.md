@@ -1,13 +1,21 @@
 # MongoDB for Flow Steward
 
+Connect MongoDB to Flow Steward for document lookup, reusable JSON Dataset queries and workflow record changes. Workflow reads support find, find-one, projections, sorting and read-only aggregation. Writes insert one document or a batch, apply update operators with optional upsert, and delete matching documents. Multi-document update and delete actions require explicit acknowledgement, while mutation filters must be nonempty.
+
+Read-only Datasets add authorized collection discovery, sampled schema inspection, parameterized find queries, a smaller aggregation subset, previews and output-schema inference. Dataset resource and field selections apply to queries and returned fields. Workflow document results preserve BSON types using canonical Extended JSON; Dataset results convert supported values into JSON while retaining large integers and Decimal128 values as strings.
+
+Configure a database with username/password and a direct or SRV endpoint. Reads return at most 100 documents, but multi-document updates and deletes can affect every match. Aggregation result limits do not cap all server computation. Transactions, change streams, cross-collection joins and executable JavaScript are outside this connector. Sampled schemas describe observed documents rather than enforce collection structure. Atlas vector search and embedding generation are not provided.
+
+## Runtime and operation requirements
+
 An independent MongoDB extension with document reads and writes and bounded read-only aggregation. No database triggers. Install only this connector; it does not include SQL, Redis, or other database drivers.
 
 ## Install
 
 Choose the ZIP matching the **Linux host** architecture, not the machine running your browser:
 
-- `flowsteward.mongodb-1.1.2-linux-amd64.zip`
-- `flowsteward.mongodb-1.1.2-linux-arm64.zip`
+- `flowsteward.mongodb-1.1.5-linux-amd64.zip`
+- `flowsteward.mongodb-1.1.5-linux-arm64.zip`
 
 Each ZIP contains one MongoDB-only Google MCP Toolbox executable, the host-v2 adapter, manifests, and source/build provenance. Verify `SHA256SUMS` before importing the archive. Flow Steward platform 1.5.0 or newer and public extension SDK 0.4.0 are required.
 

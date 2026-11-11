@@ -2,10 +2,10 @@
   "manifest_version": 2,
   "extension_id": "flowsteward.mongodb",
   "kind": "tool_provider",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "release_stage": "active",
   "display_name": "MongoDB",
-  "description": "MongoDB Dataset JSON reads, collection discovery, and guarded workflow CRUD through minimal native Toolbox.",
+  "description": "Connect MongoDB to Flow Steward for document lookup, reusable JSON Dataset queries and workflow record changes. Workflow reads support find, find-one, projections, sorting and read-only aggregation. Writes insert one document or a batch, apply update operators with optional upsert, and delete matching documents. Multi-document update and delete actions require explicit acknowledgement, while mutation filters must be nonempty.\n\nRead-only Datasets add authorized collection discovery, sampled schema inspection, parameterized find queries, a smaller aggregation subset, previews and output-schema inference. Dataset resource and field selections apply to queries and returned fields. Workflow document results preserve BSON types using canonical Extended JSON; Dataset results convert supported values into JSON while retaining large integers and Decimal128 values as strings.\n\nConfigure a database with username/password and a direct or SRV endpoint. Reads return at most 100 documents, but multi-document updates and deletes can affect every match. Aggregation result limits do not cap all server computation. Transactions, change streams, cross-collection joins and executable JavaScript are outside this connector. Sampled schemas describe observed documents rather than enforce collection structure. Atlas vector search and embedding generation are not provided.",
   "lifecycle": {
     "data_schema_version": 1,
     "data_migrations": []
@@ -19,7 +19,8 @@
       "mongodb",
       "toolbox"
     ],
-    "summary": "Document CRUD and read-only aggregation."
+    "summary": "Read and aggregate MongoDB documents, use JSON Datasets, and insert, update or delete workflow records.",
+    "setup_summary": "Configure the MongoDB hostname, database, authentication database and username/password; enable SRV for a suitable Atlas/SRV hostname. Public endpoints require verified TLS, and private endpoints require the host administrator’s private-network setting."
   },
   "features": [
     "tool",
