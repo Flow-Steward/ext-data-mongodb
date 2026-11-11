@@ -14,8 +14,8 @@ An independent MongoDB extension with document reads and writes and bounded read
 
 Choose the ZIP matching the **Linux host** architecture, not the machine running your browser:
 
-- `flowsteward.mongodb-1.1.5-linux-amd64.zip`
-- `flowsteward.mongodb-1.1.5-linux-arm64.zip`
+- `flowsteward.mongodb-1.1.6-linux-amd64.zip`
+- `flowsteward.mongodb-1.1.6-linux-arm64.zip`
 
 Each ZIP contains one MongoDB-only Google MCP Toolbox executable, the host-v2 adapter, manifests, and source/build provenance. Verify `SHA256SUMS` before importing the archive. Flow Steward platform 1.5.0 or newer and public extension SDK 0.4.0 are required.
 
@@ -141,3 +141,30 @@ and truncation. Caller byte limits apply to the complete assembled metadata.
 Validation with unresolved typed parameters reports `sample_parameters_required`
 and `required_sample_params`: static structure/types are checked, while actual
 values are required for complete scope/range validation and every execution.
+
+## Automated CI and releases
+
+Pushes to `main` and pull requests run the shared extension build workflow. The checked-in `.github/release-config.json` selects both Linux targets, the repository's package script and test inputs. Missing native payloads and published-only inventory are restored from checksum-pinned release archives; tracked source files are preserved. The source packager retains its provenance checks.
+
+After the versioned release commit is on `main`, publish by pushing its version tag:
+
+```sh
+git tag v1.1.6
+git push origin v1.1.6
+```
+
+The release workflow runs the shared checks, builds the target archives and publishes the GitHub release and checksums. Do not move an existing tag. To rerun a release for an existing tag, dispatch the same workflow:
+
+```sh
+gh workflow run release.yml --repo Flow-Steward/ext-data-mongodb --ref main -f tag=v1.1.6
+```
+
+The manifest, descriptor (when present), package version and tag must identify the same release. Release publication uses the workflow token; no additional repository secret is required by these callers.
+
+### Standalone CI coverage
+
+The release recipe lists the standalone test files and individual test nodes explicitly, including package, source and provenance contracts. The shared runner clears repository pytest addopts so packaged contract checks are not silently deselected. This scope does not claim live provider or database verification.
+
+The following integration coverage requires a separate environment and is not part of standalone CI:
+
+- `tests/test_live.py`: Opt-in live provider/server test requires external credentials or a disposable service fixture.

@@ -319,7 +319,7 @@ def invoke(config, secrets, command, arguments, *, timeout_seconds):
                             "capabilities": {},
                             "clientInfo": {
                                 "name": "flowsteward.mongodb",
-                                "version": "1.1.2",
+                                "version": "1.1.6",
                             },
                         },
                     },

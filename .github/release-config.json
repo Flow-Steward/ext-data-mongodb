@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "extension_id": "flowsteward.mongodb",
+  "runtime_targets": [
+    "linux-amd64",
+    "linux-arm64"
+  ],
+  "package_script": "scripts/package_extension.py",
+  "test_requirements": [
+    "requirements-dev.txt"
+  ],
+  "test_paths": [
+    "tests/test_contracts.py",
+    "tests/test_datasets.py",
+    "tests/test_license.py",
+    "tests/test_native_build.py",
+    "tests/test_native_registrations.py",
+    "tests/test_package.py",
+    "tests/test_runtime.py",
+    "tests/test_security_floor.py",
+    "tests/test_transport.py"
+  ],
+  "additional_assets": [],
+  "payload_sources": [
+    {
+      "target": "linux-amd64",
+      "url": "https://github.com/Flow-Steward/ext-data-mongodb/releases/download/v1.1.4/flowsteward.mongodb-1.1.4-linux-amd64.zip",
+      "bytes": 12205272,
+      "sha256": "0750ecdb99fcea08a6959b0dcccfa0a7861bc02204e04b4a28206f323684c85e",
+      "restore_paths": [
+        "bin/linux-amd64/toolbox"
+      ]
+    },
+    {
+      "target": "linux-arm64",
+      "url": "https://github.com/Flow-Steward/ext-data-mongodb/releases/download/v1.1.4/flowsteward.mongodb-1.1.4-linux-arm64.zip",
+      "bytes": 11004385,
+      "sha256": "2403592e0dae3e22decccb57909fca8dc7ad2d24c5fe36ae9ce706df74e60476",
+      "restore_paths": [
+        "bin/linux-arm64/toolbox"
+      ]
+    }
+  ]
+}
