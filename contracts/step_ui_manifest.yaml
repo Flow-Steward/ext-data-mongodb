@@ -2,229 +2,287 @@
   "forms": [
     {
       "operation_id": "find",
-      "title": "Find",
+      "title": "Find matching documents",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": false
+          "label": "Document filter (JSON)",
+          "required": false,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         },
         {
           "name": "projection",
           "widget_type": "json",
-          "label": "Projection",
-          "required": false
+          "label": "Fields to return (JSON)",
+          "required": false,
+          "help_text": "Optional MongoDB projection. Use 1 to include fields and 0 to exclude fields; follow MongoDB projection rules.",
+          "placeholder": "{\"status\":1,\"total\":1,\"_id\":0}"
         },
         {
           "name": "sort",
           "widget_type": "json",
-          "label": "Sort",
-          "required": false
+          "label": "Sort fields and directions (JSON)",
+          "required": false,
+          "help_text": "Ordered object of field names and integer directions: 1 ascending or -1 descending.",
+          "placeholder": "{\"total\":-1,\"_id\":1}"
         },
         {
           "name": "limit",
           "widget_type": "integer",
-          "label": "Limit",
-          "required": false
+          "label": "Maximum results",
+          "required": false,
+          "help_text": "Maximum records to return in this call, from 1 to 100. This is not an automatic all-pages read.",
+          "placeholder": "20"
         }
       ]
     },
     {
       "operation_id": "find_one",
-      "title": "Find One",
+      "title": "Find one matching document",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": false
+          "label": "Document filter (JSON)",
+          "required": false,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         },
         {
           "name": "projection",
           "widget_type": "json",
-          "label": "Projection",
-          "required": false
+          "label": "Fields to return (JSON)",
+          "required": false,
+          "help_text": "Optional MongoDB projection. Use 1 to include fields and 0 to exclude fields; follow MongoDB projection rules.",
+          "placeholder": "{\"status\":1,\"total\":1,\"_id\":0}"
         }
       ]
     },
     {
       "operation_id": "aggregate",
-      "title": "Aggregate",
+      "title": "Run a read-only aggregation pipeline",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "pipeline",
           "widget_type": "json",
-          "label": "Pipeline",
-          "required": true
+          "label": "Read-only aggregation stages (JSON)",
+          "required": true,
+          "help_text": "Array of up to 16 supported stages, for example $match then $group. No $lookup, $unionWith, $out, $merge or JavaScript; output is bounded by Maximum results.",
+          "placeholder": "[{\"$match\":{\"status\":\"approved\"}},{\"$group\":{\"_id\":\"$status\",\"count\":{\"$sum\":1}}}]"
         },
         {
           "name": "limit",
           "widget_type": "integer",
-          "label": "Limit",
-          "required": false
+          "label": "Maximum results",
+          "required": false,
+          "help_text": "Maximum records to return in this call, from 1 to 100. This is not an automatic all-pages read.",
+          "placeholder": "20"
         }
       ]
     },
     {
       "operation_id": "insert_one",
-      "title": "Insert One",
+      "title": "Insert one new document",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "document",
           "widget_type": "json",
-          "label": "Document",
-          "required": true
+          "label": "New document (JSON)",
+          "required": true,
+          "help_text": "Nonempty MongoDB document. A caller-supplied stable _id helps detect duplicate submissions; duplicate IDs fail rather than update.",
+          "placeholder": "{\"_id\":\"order_1042\",\"status\":\"pending\"}"
         }
       ]
     },
     {
       "operation_id": "insert_many",
-      "title": "Insert Many",
+      "title": "Insert a batch of new documents",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "documents",
           "widget_type": "json",
-          "label": "Documents",
-          "required": true
+          "label": "New documents (JSON)",
+          "required": true,
+          "help_text": "Array of 1–100 nonempty MongoDB documents. A failed batch may already have inserted some documents; inspect before repeating it.",
+          "placeholder": "[{\"_id\":\"order_1042\",\"status\":\"pending\"}]"
         }
       ]
     },
     {
       "operation_id": "update_one",
-      "title": "Update One",
+      "title": "Update one matching document",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": true
+          "label": "Document filter (JSON)",
+          "required": true,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         },
         {
           "name": "update",
           "widget_type": "json",
-          "label": "Update",
-          "required": true
+          "label": "Update operators (JSON)",
+          "required": true,
+          "help_text": "Nonempty MongoDB update operator object, such as $set or $inc. Replacement documents and aggregation update pipelines are not accepted.",
+          "placeholder": "{\"$set\":{\"status\":\"approved\"}}"
         },
         {
           "name": "upsert",
           "widget_type": "boolean",
-          "label": "Upsert",
-          "required": false
+          "label": "Create if no document matches",
+          "required": false,
+          "help_text": "Default false. Set true to create a document when the nonempty filter matches nothing. Check the filter and unique keys before enabling.",
+          "placeholder": "false"
         }
       ]
     },
     {
       "operation_id": "update_many",
-      "title": "Update Many",
+      "title": "Update all matching documents",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": true
+          "label": "Document filter (JSON)",
+          "required": true,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         },
         {
           "name": "update",
           "widget_type": "json",
-          "label": "Update",
-          "required": true
+          "label": "Update operators (JSON)",
+          "required": true,
+          "help_text": "Nonempty MongoDB update operator object, such as $set or $inc. Replacement documents and aggregation update pipelines are not accepted.",
+          "placeholder": "{\"$set\":{\"status\":\"approved\"}}"
         },
         {
           "name": "upsert",
           "widget_type": "boolean",
-          "label": "Upsert",
-          "required": false
+          "label": "Create if no document matches",
+          "required": false,
+          "help_text": "Default false. Set true to create a document when the nonempty filter matches nothing. Check the filter and unique keys before enabling.",
+          "placeholder": "false"
         },
         {
           "name": "allow_many",
           "widget_type": "boolean",
-          "label": "Allow Many",
-          "required": true
+          "label": "Confirm changes to all matching documents",
+          "required": true,
+          "help_text": "Must be true to acknowledge updating or deleting every match of the nonempty filter. Preview that filter with Find matching documents first.",
+          "placeholder": "true"
         }
       ]
     },
     {
       "operation_id": "delete_one",
-      "title": "Delete One",
+      "title": "Delete one matching document",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": true
+          "label": "Document filter (JSON)",
+          "required": true,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         }
       ]
     },
     {
       "operation_id": "delete_many",
-      "title": "Delete Many",
+      "title": "Delete all matching documents",
       "fields": [
         {
           "name": "collection",
           "widget_type": "textarea",
-          "label": "Collection",
-          "required": true
+          "label": "Collection name",
+          "required": true,
+          "help_text": "MongoDB collection in the database configured on the connection. Use a collection name, not a database-qualified name.",
+          "placeholder": "orders"
         },
         {
           "name": "filter",
           "widget_type": "json",
-          "label": "Filter",
-          "required": true
+          "label": "Document filter (JSON)",
+          "required": true,
+          "help_text": "MongoDB filter object. Reads may use {} to match all documents; update and delete actions require a nonempty filter. Use canonical Extended JSON for BSON-specific values.",
+          "placeholder": "{\"status\":\"pending\"}"
         },
         {
           "name": "allow_many",
           "widget_type": "boolean",
-          "label": "Allow Many",
-          "required": true
+          "label": "Confirm changes to all matching documents",
+          "required": true,
+          "help_text": "Must be true to acknowledge updating or deleting every match of the nonempty filter. Preview that filter with Find matching documents first.",
+          "placeholder": "true"
         }
       ]
     }

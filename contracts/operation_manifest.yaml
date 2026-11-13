@@ -2,8 +2,8 @@
   "operations": [
     {
       "operation_id": "find",
-      "display_name": "Find",
-      "description": "Find up to 100 documents with optional projection and ordered sort. Results use canonical Extended JSON.",
+      "display_name": "Find matching documents",
+      "description": "Read up to 100 MongoDB documents using a filter, optional projection and ordered sort. Results use canonical Extended JSON.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -15,13 +15,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -32,7 +32,7 @@
           "name": "filter",
           "value_type": "json",
           "required": false,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -41,7 +41,7 @@
           "name": "projection",
           "value_type": "json",
           "required": false,
-          "display_name": "Projection",
+          "display_name": "Fields to return (JSON)",
           "schema": {
             "type": "object"
           }
@@ -50,7 +50,7 @@
           "name": "sort",
           "value_type": "json",
           "required": false,
-          "display_name": "Sort",
+          "display_name": "Sort fields and directions (JSON)",
           "schema": {
             "type": "object"
           }
@@ -59,7 +59,7 @@
           "name": "limit",
           "value_type": "integer",
           "required": false,
-          "display_name": "Limit",
+          "display_name": "Maximum results",
           "schema": {
             "type": "integer",
             "minimum": 1,
@@ -109,8 +109,8 @@
     },
     {
       "operation_id": "find_one",
-      "display_name": "Find One",
-      "description": "Find one document; missing documents return null and found false.",
+      "display_name": "Find one matching document",
+      "description": "Read one matching MongoDB document with an optional field projection. A missing match returns null and found=false.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -122,13 +122,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -139,7 +139,7 @@
           "name": "filter",
           "value_type": "json",
           "required": false,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -148,7 +148,7 @@
           "name": "projection",
           "value_type": "json",
           "required": false,
-          "display_name": "Projection",
+          "display_name": "Fields to return (JSON)",
           "schema": {
             "type": "object"
           }
@@ -190,8 +190,8 @@
     },
     {
       "operation_id": "aggregate",
-      "display_name": "Aggregate",
-      "description": "Run a bounded read-only pipeline. Cross-collection, JavaScript and write stages are rejected.",
+      "display_name": "Run a read-only aggregation pipeline",
+      "description": "Summarize or transform documents with up to 16 supported aggregation stages and at most 100 results. Cross-collection, JavaScript and write stages are rejected.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -203,13 +203,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -220,7 +220,7 @@
           "name": "pipeline",
           "value_type": "json",
           "required": true,
-          "display_name": "Pipeline",
+          "display_name": "Read-only aggregation stages (JSON)",
           "schema": {
             "type": "array",
             "maxItems": 16,
@@ -233,7 +233,7 @@
           "name": "limit",
           "value_type": "integer",
           "required": false,
-          "display_name": "Limit",
+          "display_name": "Maximum results",
           "schema": {
             "type": "integer",
             "minimum": 1,
@@ -283,8 +283,8 @@
     },
     {
       "operation_id": "insert_one",
-      "display_name": "Insert One",
-      "description": "Insert one document. Use an explicit stable _id when deduplication is needed.",
+      "display_name": "Insert one new document",
+      "description": "Insert a MongoDB document. Supply a stable _id to detect duplicate submissions; this action does not update an existing document.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -296,13 +296,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -313,7 +313,7 @@
           "name": "document",
           "value_type": "json",
           "required": true,
-          "display_name": "Document",
+          "display_name": "New document (JSON)",
           "schema": {
             "type": "object"
           }
@@ -355,8 +355,8 @@
     },
     {
       "operation_id": "insert_many",
-      "display_name": "Insert Many",
-      "description": "Insert 1\u2013100 documents. A failure may leave a partially inserted batch; automatic retries are disabled.",
+      "display_name": "Insert a batch of new documents",
+      "description": "Insert 1–100 MongoDB documents. A failure can leave a partially inserted batch; automatic retries are disabled.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -368,13 +368,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -385,7 +385,7 @@
           "name": "documents",
           "value_type": "json",
           "required": true,
-          "display_name": "Documents",
+          "display_name": "New documents (JSON)",
           "schema": {
             "type": "array",
             "minItems": 1,
@@ -432,8 +432,8 @@
     },
     {
       "operation_id": "update_one",
-      "display_name": "Update One",
-      "description": "Apply update operators to one matching document, with optional upsert.",
+      "display_name": "Update one matching document",
+      "description": "Apply MongoDB update operators to one document selected by a nonempty filter. Enable upsert to create a document when no match exists.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -445,13 +445,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -462,7 +462,7 @@
           "name": "filter",
           "value_type": "json",
           "required": true,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -471,7 +471,7 @@
           "name": "update",
           "value_type": "json",
           "required": true,
-          "display_name": "Update",
+          "display_name": "Update operators (JSON)",
           "schema": {
             "type": "object"
           }
@@ -480,7 +480,7 @@
           "name": "upsert",
           "value_type": "boolean",
           "required": false,
-          "display_name": "Upsert",
+          "display_name": "Create if no document matches",
           "schema": {
             "type": "boolean",
             "default": false
@@ -538,8 +538,8 @@
     },
     {
       "operation_id": "update_many",
-      "display_name": "Update Many",
-      "description": "Update matching documents with explicit allow_many acknowledgement; optional upsert.",
+      "display_name": "Update all matching documents",
+      "description": "Apply update operators to every match of a nonempty filter. Explicitly acknowledge the bulk change; optional upsert creates a document when nothing matches.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -551,13 +551,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -568,7 +568,7 @@
           "name": "filter",
           "value_type": "json",
           "required": true,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -577,7 +577,7 @@
           "name": "update",
           "value_type": "json",
           "required": true,
-          "display_name": "Update",
+          "display_name": "Update operators (JSON)",
           "schema": {
             "type": "object"
           }
@@ -586,7 +586,7 @@
           "name": "upsert",
           "value_type": "boolean",
           "required": false,
-          "display_name": "Upsert",
+          "display_name": "Create if no document matches",
           "schema": {
             "type": "boolean",
             "default": false
@@ -596,7 +596,7 @@
           "name": "allow_many",
           "value_type": "boolean",
           "required": true,
-          "display_name": "Allow Many",
+          "display_name": "Confirm changes to all matching documents",
           "schema": {
             "type": "boolean",
             "enum": [
@@ -656,8 +656,8 @@
     },
     {
       "operation_id": "delete_one",
-      "display_name": "Delete One",
-      "description": "Delete at most one matching document. A zero-match delete succeeds with deleted_count zero.",
+      "display_name": "Delete one matching document",
+      "description": "Delete at most one document selected by a nonempty filter. No match succeeds with deleted_count=0.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -669,13 +669,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -686,7 +686,7 @@
           "name": "filter",
           "value_type": "json",
           "required": true,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -728,8 +728,8 @@
     },
     {
       "operation_id": "delete_many",
-      "display_name": "Delete Many",
-      "description": "Delete matching documents with explicit allow_many acknowledgement. Nonempty filter required.",
+      "display_name": "Delete all matching documents",
+      "description": "Delete every document selected by a nonempty filter. Explicitly acknowledge the bulk change and inspect the filter with Find first.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -741,13 +741,13 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection Ref"
+          "display_name": "Project connection"
         },
         {
           "name": "collection",
           "value_type": "text",
           "required": true,
-          "display_name": "Collection",
+          "display_name": "Collection name",
           "schema": {
             "type": "string",
             "minLength": 1,
@@ -758,7 +758,7 @@
           "name": "filter",
           "value_type": "json",
           "required": true,
-          "display_name": "Filter",
+          "display_name": "Document filter (JSON)",
           "schema": {
             "type": "object"
           }
@@ -767,7 +767,7 @@
           "name": "allow_many",
           "value_type": "boolean",
           "required": true,
-          "display_name": "Allow Many",
+          "display_name": "Confirm changes to all matching documents",
           "schema": {
             "type": "boolean",
             "enum": [

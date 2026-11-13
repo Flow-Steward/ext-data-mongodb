@@ -3,8 +3,8 @@
     {
       "action_id": "find",
       "workflow_visible": true,
-      "title": "Find",
-      "description": "Find up to 100 documents with optional projection and ordered sort. Results use canonical Extended JSON.",
+      "title": "Find matching documents",
+      "description": "Read up to 100 MongoDB documents using a filter, optional projection and ordered sort. Results use canonical Extended JSON.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -68,8 +68,8 @@
     {
       "action_id": "find_one",
       "workflow_visible": true,
-      "title": "Find One",
-      "description": "Find one document; missing documents return null and found false.",
+      "title": "Find one matching document",
+      "description": "Read one matching MongoDB document with an optional field projection. A missing match returns null and found=false.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -122,8 +122,8 @@
     {
       "action_id": "aggregate",
       "workflow_visible": true,
-      "title": "Aggregate",
-      "description": "Run a bounded read-only pipeline. Cross-collection, JavaScript and write stages are rejected.",
+      "title": "Run a read-only aggregation pipeline",
+      "description": "Summarize or transform documents with up to 16 supported aggregation stages and at most 100 results. Cross-collection, JavaScript and write stages are rejected.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -177,8 +177,8 @@
     {
       "action_id": "insert_one",
       "workflow_visible": true,
-      "title": "Insert One",
-      "description": "Insert one document. Use an explicit stable _id when deduplication is needed.",
+      "title": "Insert one new document",
+      "description": "Insert a MongoDB document. Supply a stable _id to detect duplicate submissions; this action does not update an existing document.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -226,8 +226,8 @@
     {
       "action_id": "insert_many",
       "workflow_visible": true,
-      "title": "Insert Many",
-      "description": "Insert 1\u2013100 documents. A failure may leave a partially inserted batch; automatic retries are disabled.",
+      "title": "Insert a batch of new documents",
+      "description": "Insert 1–100 MongoDB documents. A failure can leave a partially inserted batch; automatic retries are disabled.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -275,8 +275,8 @@
     {
       "action_id": "update_one",
       "workflow_visible": true,
-      "title": "Update One",
-      "description": "Apply update operators to one matching document, with optional upsert.",
+      "title": "Update one matching document",
+      "description": "Apply MongoDB update operators to one document selected by a nonempty filter. Enable upsert to create a document when no match exists.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -337,8 +337,8 @@
     {
       "action_id": "update_many",
       "workflow_visible": true,
-      "title": "Update Many",
-      "description": "Update matching documents with explicit allow_many acknowledgement; optional upsert.",
+      "title": "Update all matching documents",
+      "description": "Apply update operators to every match of a nonempty filter. Explicitly acknowledge the bulk change; optional upsert creates a document when nothing matches.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -404,8 +404,8 @@
     {
       "action_id": "delete_one",
       "workflow_visible": true,
-      "title": "Delete One",
-      "description": "Delete at most one matching document. A zero-match delete succeeds with deleted_count zero.",
+      "title": "Delete one matching document",
+      "description": "Delete at most one document selected by a nonempty filter. No match succeeds with deleted_count=0.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -453,8 +453,8 @@
     {
       "action_id": "delete_many",
       "workflow_visible": true,
-      "title": "Delete Many",
-      "description": "Delete matching documents with explicit allow_many acknowledgement. Nonempty filter required.",
+      "title": "Delete all matching documents",
+      "description": "Delete every document selected by a nonempty filter. Explicitly acknowledge the bulk change and inspect the filter with Find first.",
       "required_scopes": [
         "extension:invoke"
       ],
