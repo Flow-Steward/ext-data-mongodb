@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 
 EXTENSION_ID = "flowsteward.mongodb"
-VERSION = "1.1.8"
+VERSION = "1.1.9"
 TOP_FOLDER = "flowsteward_mongodb"
 SOURCE_DATE_EPOCH = 1794536030
 MAX_ARCHIVE_BYTES = 50 * 1024 * 1024

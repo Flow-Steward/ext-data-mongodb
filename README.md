@@ -16,8 +16,8 @@ An independent MongoDB extension with document reads and writes and bounded read
 
 Choose the ZIP matching the **Linux host** architecture, not the machine running your browser:
 
-- `flowsteward.mongodb-1.1.8-linux-amd64.zip`
-- `flowsteward.mongodb-1.1.8-linux-arm64.zip`
+- `flowsteward.mongodb-1.1.9-linux-amd64.zip`
+- `flowsteward.mongodb-1.1.9-linux-arm64.zip`
 
 Each ZIP contains one MongoDB-only Google MCP Toolbox executable, the host-v2 adapter, manifests, and source/build provenance. Verify `SHA256SUMS` before importing the archive. Flow Steward platform 1.5.0 or newer and public extension SDK 0.4.0 are required.
 
@@ -151,14 +151,14 @@ Pushes to `main` and pull requests run the shared extension build workflow. The 
 After the versioned release commit is on `main`, publish by pushing its version tag:
 
 ```sh
-git tag v1.1.8
-git push origin v1.1.8
+git tag v1.1.9
+git push origin v1.1.9
 ```
 
 The release workflow runs the shared checks, builds the target archives and publishes the GitHub release and checksums. Do not move an existing tag. To rerun a release for an existing tag, dispatch the same workflow:
 
 ```sh
-gh workflow run release.yml --repo Flow-Steward/ext-data-mongodb --ref main -f tag=v1.1.8
+gh workflow run release.yml --repo Flow-Steward/ext-data-mongodb --ref main -f tag=v1.1.9
 ```
 
 The manifest, descriptor (when present), package version and tag must identify the same release. Release publication uses the workflow token; no additional repository secret is required by these callers.
