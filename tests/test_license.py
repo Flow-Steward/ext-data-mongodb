@@ -1,4 +1,4 @@
-"""Preserve the unmodified Apache license shipped by pinned Toolbox v1.16.0."""
+"""Preserve the unmodified Apache license shipped by pinned Toolbox v1.17.0."""
 
 import hashlib
 from pathlib import Path

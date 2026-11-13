@@ -18,27 +18,10 @@
     "tests/test_package.py",
     "tests/test_runtime.py",
     "tests/test_security_floor.py",
-    "tests/test_transport.py"
+    "tests/test_transport.py",
+    "tests/test_source_builder.py",
+    "tests/test_package.py::test_generated_native_metadata_is_required"
   ],
   "additional_assets": [],
-  "payload_sources": [
-    {
-      "target": "linux-amd64",
-      "url": "https://github.com/Flow-Steward/ext-data-mongodb/releases/download/v1.1.4/flowsteward.mongodb-1.1.4-linux-amd64.zip",
-      "bytes": 12205272,
-      "sha256": "0750ecdb99fcea08a6959b0dcccfa0a7861bc02204e04b4a28206f323684c85e",
-      "restore_paths": [
-        "bin/linux-amd64/toolbox"
-      ]
-    },
-    {
-      "target": "linux-arm64",
-      "url": "https://github.com/Flow-Steward/ext-data-mongodb/releases/download/v1.1.4/flowsteward.mongodb-1.1.4-linux-arm64.zip",
-      "bytes": 11004385,
-      "sha256": "2403592e0dae3e22decccb57909fca8dc7ad2d24c5fe36ae9ce706df74e60476",
-      "restore_paths": [
-        "bin/linux-arm64/toolbox"
-      ]
-    }
-  ]
+  "payload_sources": []
 }

@@ -16,8 +16,8 @@ An independent MongoDB extension with document reads and writes and bounded read
 
 Choose the ZIP matching the **Linux host** architecture, not the machine running your browser:
 
-- `flowsteward.mongodb-1.1.7-linux-amd64.zip`
-- `flowsteward.mongodb-1.1.7-linux-arm64.zip`
+- `flowsteward.mongodb-1.1.8-linux-amd64.zip`
+- `flowsteward.mongodb-1.1.8-linux-arm64.zip`
 
 Each ZIP contains one MongoDB-only Google MCP Toolbox executable, the host-v2 adapter, manifests, and source/build provenance. Verify `SHA256SUMS` before importing the archive. Flow Steward platform 1.5.0 or newer and public extension SDK 0.4.0 are required.
 
@@ -83,7 +83,7 @@ python3 scripts/package_extension.py --runtime-target linux-amd64
 python3 scripts/package_extension.py --runtime-target linux-arm64
 ```
 
-The build pins upstream Toolbox v1.16.0 commit `06ea49d9a487a72c22419b5a8d5c22c11f0d7485` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are built locally and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
+The build pins upstream Toolbox v1.17.0 commit `45ed205cc8682ed066c82e0b65bcd0e8fc3becce` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are rebuilt in CI and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
 
 From a Flow Steward checkout, run the supported container gate against this standalone checkout:
 
@@ -151,14 +151,14 @@ Pushes to `main` and pull requests run the shared extension build workflow. The 
 After the versioned release commit is on `main`, publish by pushing its version tag:
 
 ```sh
-git tag v1.1.7
-git push origin v1.1.7
+git tag v1.1.8
+git push origin v1.1.8
 ```
 
 The release workflow runs the shared checks, builds the target archives and publishes the GitHub release and checksums. Do not move an existing tag. To rerun a release for an existing tag, dispatch the same workflow:
 
 ```sh
-gh workflow run release.yml --repo Flow-Steward/ext-data-mongodb --ref main -f tag=v1.1.7
+gh workflow run release.yml --repo Flow-Steward/ext-data-mongodb --ref main -f tag=v1.1.8
 ```
 
 The manifest, descriptor (when present), package version and tag must identify the same release. Release publication uses the workflow token; no additional repository secret is required by these callers.
@@ -170,3 +170,5 @@ The release recipe lists the standalone test files and individual test nodes exp
 The following integration coverage requires a separate environment and is not part of standalone CI:
 
 - `tests/test_live.py`: Opt-in live provider/server test requires external credentials or a disposable service fixture.
+
+CI builds both Linux architectures from the pinned upstream checkout; it does not restore older release binaries. `scripts/build_toolbox.sh` clones the pinned tag automatically, or accepts a clean exact-commit checkout through `TOOLBOX_SOURCE` / `FS_TOOLBOX_SOURCE_DIR`. The build generates `toolbox-provenance.json`, `SHA256SUMS` and selected compiler metadata, which are included in release archives.
