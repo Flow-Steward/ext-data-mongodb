@@ -83,7 +83,7 @@ python3 scripts/package_extension.py --runtime-target linux-amd64
 python3 scripts/package_extension.py --runtime-target linux-arm64
 ```
 
-The build pins upstream Toolbox v1.17.0 commit `45ed205cc8682ed066c82e0b65bcd0e8fc3becce` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are rebuilt in CI and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
+The build pins upstream Toolbox v1.18.0 commit `24762d91babd43d91afc3daeeece1cb446266c54` and a Go container by digest. The included source patch corrects MongoDB sorting and result handling, adds literal payloads and the dial policy, and disables automatic retries. Binary SHA-256, source, patch and build image are recorded in `toolbox-provenance.json`. Binaries are rebuilt in CI and omitted from Git source history. Archives have deterministic ordering, timestamps and permissions, contain one architecture, and stay within the installer's 50 MiB compressed/150 MiB unpacked limits.
 
 From a Flow Steward checkout, run the supported container gate against this standalone checkout:
 
@@ -151,8 +151,8 @@ Pushes to `main` and pull requests run the shared extension build workflow. The 
 After the versioned release commit is on `main`, publish by pushing its version tag:
 
 ```sh
-git tag v1.1.12
-git push origin v1.1.12
+git tag v1.1.13
+git push origin v1.1.13
 ```
 
 The release workflow runs the shared checks, builds the target archives and publishes the GitHub release and checksums. Do not move an existing tag. To rerun a release for an existing tag, dispatch the same workflow:
